@@ -159,8 +159,19 @@ function initSynthwaveRadio() {
 
     // Broadcast volume changes immediately to all active channels using MIDI CC 7
     function sendVolumeCC(val) {
-        if (!selectedOutput) return;
         const ccVal = Math.min(127, Math.max(0, Math.round(val * 127)));
+
+        // Lähetetään CC 7 (Volume) WAV-äänimoottorille globaalia tasonsäätöä varten
+        if (typeof window.onMIDIEvent === 'function') {
+            window.onMIDIEvent({
+                type: 'cc',
+                channel: 1, 
+                controller: 7,
+                value: ccVal
+            });
+        }
+
+        if (!selectedOutput) return;
         const activeChannels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
         activeChannels.forEach(ch => {
             try {
@@ -397,7 +408,7 @@ function initSynthwaveRadio() {
                     events.push({
                         tick,
                         type: 'note',
-                        channel: 4, 
+                        channel: 4, // Melody Synth (Plays melody.wav now!)
                         note: pe.note,
                         velocity: pe.velocity,
                         duration: durationTicks
@@ -455,13 +466,13 @@ function initSynthwaveRadio() {
                 events.push({
                     tick,
                     type: 'note',
-                    channel: 6, // Ch6 Solo Synth
+                    channel: 6, // Lead Solo (Plays lead.wav now!)
                     note: cappedNote,
                     velocity: 95,
                     duration: durationTicks
                 });
 
-                // Perinteinen Pitch bend
+                // Perinteinen Pitch bend (Vaikuttaa lead.wav soittoon!)
                 events.push({ tick: tick, type: 'pitch', channel: 6, value: 8192 });
                 events.push({ tick: tick + durationTicks * 0.15, type: 'pitch', channel: 6, value: 8192 });
                 events.push({ tick: tick + durationTicks * 0.45, type: 'pitch', channel: 6, value: 9500 });
@@ -510,7 +521,7 @@ function initSynthwaveRadio() {
                     events.push({
                         tick: stepTick,
                         type: 'note',
-                        channel: 6,
+                        channel: 6, // Lead Solo (Plays lead.wav now!)
                         note: cappedNote,
                         velocity: 82,
                         duration: (ticksPerBeat / 4) - 5
@@ -614,7 +625,7 @@ function initSynthwaveRadio() {
                     duration: (ticksPerBeat / 4) - 10
                 });
             }
-        } else if (chosenStyle === "syncopated_triad") {
+        } else if (chosenStyle === "syncopated_stutter" || chosenStyle === "syncopated_triad") {
             events.push({
                 tick: fillStartTick,
                 type: 'note',
@@ -1276,7 +1287,7 @@ function initSynthwaveRadio() {
             });
         });
         
-        // Luodaan kaunis loppufeidaus viimeiselle soinnulle Ch2
+        // Kaunis loppufeidaus viimeiselle soinnulle Ch2
         const finalFadeSteps = 24;
         for (let i = 0; i <= finalFadeSteps; i++) {
             const stepTick = finalChordTick + Math.floor((i / finalFadeSteps) * ticksPerBeat * 8);
@@ -1374,10 +1385,20 @@ function initSynthwaveRadio() {
     }
     
     function sendMIDIEvent(event) {
- 
         if (!event) return;
 
-        if (typeof window.onMIDIEvent === 'function') window.onMIDIEvent(event);
+        // 1. Lasketaan skaalattu velocity
+        let scaledVel = event.velocity;
+        if (event.type === 'note') {
+            scaledVel = getScaledVelocity(event.velocity, event.channel, event.note);
+            triggerSpectrumBar(event.channel, event.note, scaledVel);
+        }
+
+        // 2. Välitetään tapahtuma WAV-äänimoottorille (sisältää myös Pitch Bendit ja CC-muutokset!)
+        if (typeof window.onMIDIEvent === 'function') {
+            const wavEvent = event.type === 'note' ? { ...event, velocity: scaledVel } : event;
+            window.onMIDIEvent(wavEvent);
+        }
 
         if (event.type === 'section') {
             currentSectionName = event.name;
@@ -1387,27 +1408,38 @@ function initSynthwaveRadio() {
             }
             return;
         }
+
+        // 3. Note-Off -ajastukset ja aktiiviset nuotit AINA (riippumatta selectedOutput-tilasta)
         if (event.type === 'note') {
-            const scaledVel = getScaledVelocity(event.velocity, event.channel, event.note);
-            triggerSpectrumBar(event.channel, event.note, scaledVel);
+            activeNotes.push({ channel: event.channel, note: event.note });
+            
+            const currentBeatLenMs = (60000 / currentBPM);
+            const noteOffTime = event.duration * currentBeatLenMs / 480;
+            
+            setTimeout(() => {
+                // Lähetetään Note-Off selaimen äänimoottorille
+                if (typeof window.onMIDIEvent === 'function') {
+                    window.onMIDIEvent({
+                        type: 'note',
+                        channel: event.channel,
+                        note: event.note,
+                        velocity: 0
+                    });
+                }
+                // Lähetetään Note-Off fyysiselle MIDI-ulostulolle
+                if (selectedOutput) {
+                    try { selectedOutput.send([0x80 + (event.channel - 1), event.note, 0]); } catch(e) {}
+                }
+                activeNotes = activeNotes.filter(n => !(n.channel === event.channel && n.note === event.note));
+            }, noteOffTime);
         }
+
+        // 4. Jos fyysistä MIDI-laitetta ei ole valittu, keskeytetään tässä (WAV jo käsitelty yllä!)
         if (!selectedOutput) return;
+
         try {
             if (event.type === 'note') {
-                const scaledVel = getScaledVelocity(event.velocity, event.channel, event.note);
                 selectedOutput.send([0x90 + (event.channel - 1), event.note, scaledVel]);
-                activeNotes.push({ channel: event.channel, note: event.note });
-                
-                // Säädetään nuotin pituutta suhteessa vallitsevaan (Vinyl stop) tempoon
-                const currentBeatLenMs = (60000 / currentBPM);
-                const noteOffTime = event.duration * currentBeatLenMs / 480;
-                
-                setTimeout(() => {
-                    if (selectedOutput) {
-                        try { selectedOutput.send([0x80 + (event.channel - 1), event.note, 0]); } catch(e) {}
-                    }
-                    activeNotes = activeNotes.filter(n => !(n.channel === event.channel && n.note === event.note));
-                }, noteOffTime);
             } else if (event.type === 'cc') {
                 selectedOutput.send([0xB0 + (event.channel - 1), event.controller, event.value]);
             } else if (event.type === 'pitch') {
@@ -1455,18 +1487,18 @@ function initSynthwaveRadio() {
                 
                 // Tasaisesti hidastuva tempo ("Vinyl stop")
                 liveBPM = song.bpm * (1.0 - progress * 0.85); 
-                if (liveBPM < 10) liveBPM = 10; // estetään täysi pysähtyminen kesken nuottien
+                if (liveBPM < 10) liveBPM = 10; 
                 
                 tapeWobbleProgress = progress;
             }
             
-            currentBPM = liveBPM; // päivitetään globaali BPM
+            currentBPM = liveBPM; 
             
             // Konvertoidaan kulunut aika MIDI-tiksiksi muuttuvan tempon mukaan
             const deltaTicks = deltaMs * liveBPM / 125;
             accumulatedTicks += deltaTicks;
             
-            // Tape Wobble: Lähetetään wobble time 200 eli lievää Pitch bend -huojuntaa dynaamisesti lisääntyen loppua kohden
+            // Tape Wobble: Lähetetään pitch-bending huojunta dynaamisesti
             if (selectedOutput && tapeWobbleProgress > 0) {
                 const wobbleTime = now / 100;
                 const wobbleVal = 8192 + Math.sin(wobbleTime) * 200 * tapeWobbleProgress;
@@ -1502,6 +1534,19 @@ function initSynthwaveRadio() {
         document.getElementById('rightWheel').classList.remove('spinning');
         document.getElementById('stereoLed').classList.remove('active');
         document.getElementById('sectionDisplay').innerText = "PAUSED";
+        
+        // Pysäytetään kaikki aktiiviset nuotit selaimen WAV-äänimoottorista
+        if (typeof window.onMIDIEvent === 'function') {
+            activeNotes.forEach(n => {
+                window.onMIDIEvent({
+                    type: 'note',
+                    channel: n.channel,
+                    note: n.note,
+                    velocity: 0
+                });
+            });
+        }
+
         if (selectedOutput) {
             activeNotes.forEach(n => { try { selectedOutput.send([0x80 + (n.channel - 1), n.note, 0]); } catch(e) {} });
             [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach(ch => {
@@ -1613,8 +1658,8 @@ function initSynthwaveRadio() {
         const header = new Uint8Array([0x4D, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x01, 0x00, 0x0B, ticksPerBeat >> 8, ticksPerBeat & 0xFF]);
         let tracks = [];
         const trackNames = { 
-            1: "Bass Classic", 2: "Chords (Voice-Led)", 3: "Arpeggio", 4: "Lead Melody", 
-            5: "Consonant Runs", 6: "Solo Synth", 7: "Mid-Bass", 8: "Kick Sidechain", 
+            1: "Bass Classic", 2: "Chords (Voice-Led)", 3: "Arpeggio", 4: "Melody Synth", 
+            5: "Consonant Runs", 6: "Lead Solo", 7: "Mid-Bass", 8: "Kick Sidechain", 
             9: "Drums & Claps", 10: "Sub-Bass", 11: "Noise FX Sweep" 
         };
         for (let ch = 1; ch <= 11; ch++) {
