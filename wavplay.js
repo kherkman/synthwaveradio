@@ -68,15 +68,15 @@
             let defaultVol = 0.6; // Default value for general instruments
             
             if (key === 'closed-hat') {
-                defaultVol = 0.25; // Default 25%
+                defaultVol = 0.2; // Default 
             } else if (key === 'open-hat') {
-                defaultVol = 0.3;  // Default 30%
+                defaultVol = 0.3;  // Default 
             } else if (key === 'bass' || key === 'mid-bass') {
-                defaultVol = 0.8;  // Default 80%
+                defaultVol = 0.8;  // Default 
             } else if (key === 'chords') {
-                defaultVol = 0.9;  // Default 90%
+                defaultVol = 0.9;  // Default 
             } else if (key === 'melody' || key === 'lead') {
-                defaultVol = 0.6;  // Default 60%
+                defaultVol = 0.9;  // Default 
             } else if (DRUM_KEYS.includes(key)) {
                 defaultVol = 0.8;  // Other drums default 80%
             }
