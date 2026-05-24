@@ -185,19 +185,19 @@
         const output = ctx.createGain();
         
         const dryGain = ctx.createGain();
-        dryGain.gain.setValueAtTime(0.65, ctx.currentTime); // Dry signaali
+        dryGain.gain.setValueAtTime(0.70, ctx.currentTime); // Dry signaali
         
         const wetGain = ctx.createGain();
-        wetGain.gain.setValueAtTime(0.45, ctx.currentTime); // Wet signaali
+        wetGain.gain.setValueAtTime(0.30, ctx.currentTime); // Wet signaali
         
         const delayNode = ctx.createDelay(0.1);
         delayNode.delayTime.setValueAtTime(0.025, ctx.currentTime); // 25ms base delay
         
         const lfo = ctx.createOscillator();
-        lfo.frequency.setValueAtTime(1.6, ctx.currentTime); // LFO rate 1.6 Hz
+        lfo.frequency.setValueAtTime(1.2, ctx.currentTime); // LFO rate 
         
         const lfoGain = ctx.createGain();
-        lfoGain.gain.setValueAtTime(0.002, ctx.currentTime); // 3.5ms modulation depth
+        lfoGain.gain.setValueAtTime(0.002, ctx.currentTime); // modulation depth
         
         lfo.connect(lfoGain);
         lfoGain.connect(delayNode.delayTime);
