@@ -67,7 +67,7 @@
             // Apply customized default volumes as requested
             let defaultVol = DRUM_KEYS.includes(key) ? 0.8 : 0.6;
             if (key === 'melody' || key === 'lead') {
-                defaultVol = 0.4; // Default 40%
+                defaultVol = 0.6; // Default 60%
             } else if (key === 'chords') {
                 defaultVol = 0.9; // Default 90%
             }
@@ -185,10 +185,10 @@
         const output = ctx.createGain();
         
         const dryGain = ctx.createGain();
-        dryGain.gain.setValueAtTime(0.55, ctx.currentTime);
+        dryGain.gain.setValueAtTime(0.65, ctx.currentTime); // Dry signaali
         
         const wetGain = ctx.createGain();
-        wetGain.gain.setValueAtTime(0.50, ctx.currentTime);
+        wetGain.gain.setValueAtTime(0.45, ctx.currentTime); // Wet signaali
         
         const delayNode = ctx.createDelay(0.1);
         delayNode.delayTime.setValueAtTime(0.025, ctx.currentTime); // 25ms base delay
@@ -197,7 +197,7 @@
         lfo.frequency.setValueAtTime(1.6, ctx.currentTime); // LFO rate 1.6 Hz
         
         const lfoGain = ctx.createGain();
-        lfoGain.gain.setValueAtTime(0.0035, ctx.currentTime); // 3.5ms modulation depth
+        lfoGain.gain.setValueAtTime(0.002, ctx.currentTime); // 3.5ms modulation depth
         
         lfo.connect(lfoGain);
         lfoGain.connect(delayNode.delayTime);
