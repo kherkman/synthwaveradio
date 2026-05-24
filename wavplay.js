@@ -436,6 +436,7 @@
     /**
      * SamplerVoice: Versatile envelope-driven voice for all instruments.
      * Supports real-time Pitch Bend, LFO Modulation Vibrato (CC 1), Stereo Panning, and channel filters.
+     * Features smooth custom crossfaded looping from 0.4s to 1.4s.
      */
     class SamplerVoice {
         constructor(ctx, buffer, midiNote, velocity, destNode, sampleKey, channel) {
@@ -453,12 +454,11 @@
             this.baseDetune = (midiNote - 60) * 100;
             this.pitchBendCents = 0;
 
-            // 1. Source Node
-            this.srcNode = ctx.createBufferSource();
-            this.srcNode.buffer = buffer;
-            this.srcNode.detune.setValueAtTime(this.baseDetune, ctx.currentTime);
+            // Arrays to keep track of actively crossfading sources for this voice
+            this.activeSources = [];
+            this.schedulerTimer = null;
 
-            // 2. Channel-specific High-Pass and Low-Pass Filters in series
+            // 1. Channel-specific High-Pass and Low-Pass Filters in series
             this.hpfNode = ctx.createBiquadFilter();
             this.hpfNode.type = "highpass";
             this.lpfNode = ctx.createBiquadFilter();
@@ -467,9 +467,11 @@
             const filterDefaults = CHANNEL_FILTERS[sampleKey] || { hpf: 20, lpf: 20000 };
             this.hpfNode.frequency.setValueAtTime(filterDefaults.hpf, ctx.currentTime);
 
-            // Apply expressive velocity tracking to LPF cutoff
+            // Apply expressive velocity tracking to LPF cutoff.
+            // Lower velocities decrease the high frequencies dynamically for warmer, darker tones.
             const normVel = velocity / 127;
-            let cutoffFreq = filterDefaults.lpf * (0.4 + 0.6 * normVel);
+            const velocityFilterFactor = 0.15 + 0.85 * Math.pow(normVel, 1.5);
+            let cutoffFreq = filterDefaults.lpf * velocityFilterFactor;
 
             // Dampen high frequencies on high notes for melody and lead to avoid piercing tones
             if (sampleKey === 'melody' || sampleKey === 'lead') {
@@ -482,28 +484,27 @@
 
             this.lpfNode.frequency.setValueAtTime(Math.min(20000, cutoffFreq), ctx.currentTime);
 
-            // 3. Vibrato LFO Modulator (CC 1 Mod Wheel)
+            // 2. Vibrato LFO Modulator (CC 1 Mod Wheel)
             this.lfo = ctx.createOscillator();
             this.lfo.frequency.setValueAtTime(6.0, ctx.currentTime); // 6 Hz vibrato
             this.lfoGain = ctx.createGain();
             this.lfoGain.gain.setValueAtTime(0.0, ctx.currentTime); 
 
             this.lfo.connect(this.lfoGain);
-            this.lfoGain.connect(this.srcNode.detune);
+            this.lfo.start();
 
-            // 4. Volume Gain Node with soft ADSR envelope
+            // 3. Volume Gain Node with soft ADSR envelope
             this.gainNode = ctx.createGain();
             this.gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
 
-            // 5. Stereo Panner Node
+            // 4. Stereo Panner Node
             this.pannerNode = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
             if (this.pannerNode) {
                 const initPan = window.wavSettings[sampleKey] ? window.wavSettings[sampleKey].pan : 0.0;
                 this.pannerNode.pan.setValueAtTime(initPan, ctx.currentTime);
             }
 
-            // Audio Routing: Source -> HPF -> LPF -> Volume -> Pan -> Destination
-            this.srcNode.connect(this.hpfNode);
+            // Audio Routing: (Individual source segments) -> HPF -> LPF -> Volume -> Pan -> Destination
             this.hpfNode.connect(this.lpfNode);
             this.lpfNode.connect(this.gainNode);
             
@@ -514,10 +515,63 @@
                 this.gainNode.connect(destNode);
             }
 
-            this.lfo.start();
             incrementVoiceCount(sampleKey);
 
             this.start();
+        }
+
+        // Helper to spawn and play an individual segment/loop slice
+        playSegment(startTime, offset, duration, fadeInDuration, fadeOutDuration) {
+            if (this.stopped) return null;
+
+            const ctx = this.ctx;
+            const srcNode = ctx.createBufferSource();
+            srcNode.buffer = this.buffer;
+
+            // Apply voice-level detuning and pitch bend
+            srcNode.detune.setValueAtTime(this.baseDetune + this.pitchBendCents, startTime);
+
+            // Hook up shared LFO vibrato
+            this.lfoGain.connect(srcNode.detune);
+
+            // Crossfade local gain node
+            const fadeGain = ctx.createGain();
+
+            // Configure Segment Fade-In
+            if (fadeInDuration > 0) {
+                fadeGain.gain.setValueAtTime(0.001, startTime);
+                fadeGain.gain.linearRampToValueAtTime(1.0, startTime + fadeInDuration);
+            } else {
+                fadeGain.gain.setValueAtTime(1.0, startTime);
+            }
+
+            // Configure Segment Fade-Out
+            if (fadeOutDuration > 0) {
+                const fadeOutStart = startTime + duration - fadeOutDuration;
+                fadeGain.gain.setValueAtTime(1.0, fadeOutStart);
+                fadeGain.gain.linearRampToValueAtTime(0.001, startTime + duration);
+            }
+
+            // Route: Source -> local fade control -> Voice HPF/LPF Filter
+            srcNode.connect(fadeGain);
+            fadeGain.connect(this.hpfNode);
+
+            srcNode.start(startTime, offset, duration);
+
+            const segment = { srcNode, fadeGain, startTime, offset, duration };
+            this.activeSources.push(segment);
+
+            srcNode.onended = () => {
+                const idx = this.activeSources.indexOf(segment);
+                if (idx > -1) {
+                    this.activeSources.splice(idx, 1);
+                }
+                try { srcNode.disconnect(); } catch(e) {}
+                try { fadeGain.disconnect(); } catch(e) {}
+                try { this.lfoGain.disconnect(srcNode.detune); } catch(e) {}
+            };
+
+            return segment;
         }
 
         start() {
@@ -531,12 +585,55 @@
             
             const userVol = window.wavSettings[this.sampleKey] ? window.wavSettings[this.sampleKey].volume : defaultVol;
             this.gainNode.gain.linearRampToValueAtTime((this.velocity / 127) * userVol, now + 0.025); // 25ms attack
-            this.srcNode.start(now);
 
-            // Cleanup when buffer finishes playing naturally
-            this.srcNode.onended = () => {
-                this.cleanup();
+            const loopStart = 0.4;
+            const loopEnd = 1.4;
+            const fadeTime = 0.2; // 200ms crossfade duration
+
+            // Determine if the sample is long enough to loop
+            this.canLoop = (this.buffer && this.buffer.duration > loopEnd);
+
+            if (this.canLoop) {
+                // Play first segment: starts at 0s, plays up to 1.4s, and begins fading out 200ms before ending (at 1.2s)
+                this.playSegment(now, 0, loopEnd, 0, fadeTime);
+
+                // Schedule subsequent loop to start precisely at 1.2s (1.4s - 0.2s crossfade time)
+                this.scheduleNext(now + (loopEnd - fadeTime));
+            } else {
+                // If sample is too short, just play it once without loops
+                this.playSegment(now, 0, this.buffer.duration, 0, 0);
+            }
+        }
+
+        // Schedule next crossfaded loops ahead of time
+        scheduleNext(targetStartTime) {
+            if (this.stopped) return;
+
+            const now = this.ctx.currentTime;
+            const lookahead = 0.15; // Schedule 150ms early to avoid JS-audio sync gaps
+            const delayMs = (targetStartTime - now - lookahead) * 1000;
+
+            const performSchedule = () => {
+                if (this.stopped) return;
+
+                const loopStart = 0.4;
+                const loopEnd = 1.4;
+                const fadeTime = 0.2;
+                const loopDuration = loopEnd - loopStart; // 1.0 second loop slice
+
+                // Play loop slice: starting at loopStart (0.4s), fading in for 0.2s and fading out at the end over 0.2s
+                this.playSegment(targetStartTime, loopStart, loopDuration, fadeTime, fadeTime);
+
+                // Queue next crossfaded slice to start at targetStartTime + 0.8s (1.0s loop duration - 0.2s fade overlap)
+                const nextStartTime = targetStartTime + (loopDuration - fadeTime);
+                this.scheduleNext(nextStartTime);
             };
+
+            if (delayMs <= 0) {
+                performSchedule();
+            } else {
+                this.schedulerTimer = setTimeout(performSchedule, delayMs);
+            }
         }
 
         setPitchBend(pitchValue) {
@@ -545,7 +642,12 @@
             this.pitchBendCents = bendRatio * 200;
             
             const now = this.ctx.currentTime;
-            this.srcNode.detune.setTargetAtTime(this.baseDetune + this.pitchBendCents, now, 0.035);
+            // Update detune on all active crossfading segments simultaneously
+            this.activeSources.forEach(seg => {
+                try {
+                    seg.srcNode.detune.setTargetAtTime(this.baseDetune + this.pitchBendCents, now, 0.035);
+                } catch(e) {}
+            });
         }
 
         setVibratoDepth(ccValue) {
@@ -558,6 +660,11 @@
         stop() {
             if (this.stopped) return;
             this.stopped = true;
+
+            if (this.schedulerTimer) {
+                clearTimeout(this.schedulerTimer);
+                this.schedulerTimer = null;
+            }
             
             const now = this.ctx.currentTime;
             this.gainNode.gain.cancelScheduledValues(now);
@@ -565,7 +672,9 @@
             this.gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.16); // 160ms soft release
 
             setTimeout(() => {
-                try { this.srcNode.stop(); } catch(e) {}
+                this.activeSources.forEach(seg => {
+                    try { seg.srcNode.stop(); } catch(e) {}
+                });
                 try { this.lfo.stop(); } catch(e) {}
                 this.cleanup();
             }, 200);
@@ -615,7 +724,9 @@
         const filterDefaults = CHANNEL_FILTERS[sampleKey] || { hpf: 20, lpf: 20000 };
         hpfNode.frequency.setValueAtTime(filterDefaults.hpf, audioCtx.currentTime);
 
-        const cutoffFreq = filterDefaults.lpf * (0.6 + 0.4 * normVel);
+        // Expressive velocity-based filter mapping for drum sounds
+        const velocityFilterFactor = 0.2 + 0.8 * Math.pow(normVel, 1.5);
+        const cutoffFreq = filterDefaults.lpf * velocityFilterFactor;
         lpfNode.frequency.setValueAtTime(Math.min(20000, cutoffFreq), audioCtx.currentTime);
 
         const gainNode = audioCtx.createGain();
