@@ -883,6 +883,60 @@ function initSynthwaveRadio() {
     
     // ========== MAIN SONG GENERATION ENGINE ==========
     function generateFullSong() {
+
+        // ========== SEKTORAKENTEIDEN VAIHTOEHDOT ==========
+        const SONG_STRUCTURES = [
+            {
+                name: "CLASSIC",
+                sections: [
+                    { name: "intro", type: "intro", isIntro: true },
+                    { name: "verse", type: "verse" },
+                    { name: "chorus", type: "chorus" },
+                    { name: "verse2", type: "verse" },
+                    { name: "chorus2", type: "chorus" },
+                    { name: "bridge", type: "bridge" },
+                    { name: "chorus2", type: "chorus" },
+                    { name: "outro", type: "outro" }
+                ],
+                // Valinnaiset erikoissäännöt
+                hasBridge: true,
+                hasVerse2: true,
+                hasChorus2: true
+            },
+            {
+                name: "SIMPLE",
+                sections: [
+                    { name: "intro", type: "intro", isIntro: true },
+                    { name: "verse", type: "verse" },
+                    { name: "chorus", type: "chorus" },
+                    { name: "verse2", type: "verse" },      
+                    { name: "chorus2", type: "chorus" },    
+                    { name: "chorus2", type: "chorus" },
+                    { name: "outro", type: "outro" }
+                ],
+                hasBridge: false,
+                hasVerse2: false,
+                hasChorus2: false
+            },
+            {
+                name: "3 VERSES",
+                sections: [
+                    { name: "intro", type: "intro", isIntro: true },
+                    { name: "verse", type: "verse" },
+                    { name: "chorus", type: "chorus" },
+                    { name: "verse2", type: "verse" },
+                    { name: "chorus2", type: "chorus" },
+                    { name: "bridge", type: "bridge" },
+                    { name: "verse2", type: "verse" },
+                    { name: "chorus2", type: "chorus" },
+                    { name: "outro", type: "outro" }
+                ],
+                hasBridge: false,
+                hasVerse2: true,
+                hasChorus2: true
+            }
+        ];
+
         const scaleKey = getRandomItem(Object.keys(SCALES));
         const scaleInfo = SCALES[scaleKey];
         const progType = getRandomItem(PROGRESSION_TYPES);
@@ -897,19 +951,6 @@ function initSynthwaveRadio() {
             chordProg.push(offset);
             chordNames.push(scaleInfo.chordNames[offset]);
         }
-        
-        const introStyle = getRandomItem(INTRO_STYLES);
-        const bridgeStyle = getRandomItem(BRIDGE_STYLES);
-        
-        const structure = {
-            intro: introStyle.bars,
-            verse: getRandomInt(12, 16),
-            chorus: getRandomInt(12, 16),
-            verse2: getRandomInt(12, 16),
-            chorus2: getRandomInt(12, 16),
-            bridge: getRandomInt(8, 12),
-            outro: getRandomInt(8, 12)
-        };
         
         const tempo = getRandomInt(88, 112);
         currentBPM = tempo;
@@ -936,16 +977,61 @@ function initSynthwaveRadio() {
 
         const ticksPerBeat = 480;
         let allEvents = [];
+
+        // MELODIATIETOJEN TALLENNUS 
+        let savedVerseMelody = null;
+        let savedChorusMelody = null;
+        let savedVerseStartBeat = 0;
+        let savedChorusStartBeat = 0;
         
-        const sections = [
-            { name: "intro", bars: structure.intro, type: "intro", isIntro: true },
-            { name: "verse", bars: structure.verse, type: "verse" },
-            { name: "chorus", bars: structure.chorus, type: "chorus" },
-            { name: "verse2", bars: structure.verse2, type: "verse" },
-            { name: "chorus2", bars: structure.chorus2, type: "chorus" },
-            { name: "bridge", bars: structure.bridge, type: "bridge" },
-            { name: "outro", bars: structure.outro, type: "outro" }
-        ];
+        // ========== VALITSE SATUNNAINEN RAKENNE ==========
+        const selectedStructure = getRandomItem(SONG_STRUCTURES);
+        const structureType = selectedStructure.name;
+
+        // Määritellään pituudet (samat kaikille rakenteille)
+        const introStyle = getRandomItem(INTRO_STYLES);
+        const bridgeStyle = getRandomItem(BRIDGE_STYLES);  
+        const verseBars =  16;
+        const chorusBars = 16;
+        const verse2Bars = selectedStructure.hasVerse2 ? 16 : 0;
+        const chorus2Bars = selectedStructure.hasChorus2 ? 16 : 0;
+        const bridgeBars = selectedStructure.hasBridge ? getRandomInt(8, 12) : 0;
+        const outroBars = getRandomInt(8, 12);
+
+        // Rakenna sections-taulukko valitun mallin mukaan
+        const sections = [];
+        for (let sectionDef of selectedStructure.sections) {
+            let bars = 0;
+            if (sectionDef.type === "intro") bars = introStyle.bars;
+            else if (sectionDef.type === "verse") bars = verseBars;
+            else if (sectionDef.type === "verse2") bars = verse2Bars;
+            else if (sectionDef.type === "chorus") bars = chorusBars;
+            else if (sectionDef.type === "chorus2") bars = chorus2Bars;
+            else if (sectionDef.type === "bridge") bars = bridgeBars;
+            else if (sectionDef.type === "outro") bars = outroBars;
+            
+            // Ohita jos bars === 0 (section ei ole käytössä)
+            if (bars > 0) {
+                sections.push({
+                    name: sectionDef.name,
+                    bars: bars,
+                    type: sectionDef.type,
+                    isIntro: sectionDef.isIntro || false
+                });
+            }
+        }
+
+        // Tallenna rakenne info-kenttiin (myöhempää käyttöä varten)
+        const structure = {
+            intro: introStyle.bars,
+            verse: verseBars,
+            chorus: chorusBars,
+            verse2: verse2Bars,
+            chorus2: chorus2Bars,
+            bridge: bridgeBars,
+            outro: outroBars,
+            structureType: structureType
+        };
         
         let currentBeat = 0;
         let prevChordNotes = null; 
@@ -959,6 +1045,7 @@ function initSynthwaveRadio() {
             allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'section', name: s.name });
             allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'cc', channel: 4, controller: 11, value: baseVol });
             
+            // ========== FILTER SWEEP INTROSSA JA BRIDGESSÄ ==========
             if (s.name === "intro" || s.name === "bridge") {
                 const totalSectionTicks = s.bars * 4 * ticksPerBeat;
                 const filterSteps = 16;
@@ -973,7 +1060,7 @@ function initSynthwaveRadio() {
                 allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'cc', channel: 3, controller: 74, value: 115 });
             }
 
-            // KOHINASWEEP (Ch11) kertosäettä edeltävillä jaksoilla (verse & verse2 loppuun)
+            // ========== KOHINASWEEP (Ch11) ENNEN KERTOSÄKEITÄ ==========
             const isBeforeChorus = (s.name === "verse" || s.name === "verse2");
             if (isBeforeChorus) {
                 const riserBars = 4;
@@ -981,17 +1068,15 @@ function initSynthwaveRadio() {
                 const riserStartTick = (currentBeat + riserStartBar * 4) * ticksPerBeat;
                 const riserDurationTicks = riserBars * 4 * ticksPerBeat;
                 
-                // Kohinan aktivoiva C4 nuotti dynaamisella suotimella
                 allEvents.push({
                     tick: riserStartTick,
                     type: 'note',
-                    channel: 11, // Kanava 11 kohinasweepille
+                    channel: 11,
                     note: 60,
                     velocity: 95,
                     duration: riserDurationTicks - 20
                 });
                 
-                // Filtterin aukeaminen CC74 ja voimakkuuden kasvaminen CC11 kertosäettä kohden
                 const steps = 32;
                 for (let i = 0; i <= steps; i++) {
                     const stepTick = riserStartTick + Math.floor((i / steps) * riserDurationTicks);
@@ -1003,13 +1088,53 @@ function initSynthwaveRadio() {
                 }
             }
 
+            // ========== MELODIAN GENEROINTI (TOISTOMEKANISMEILLA) ==========
             let sectionMelody = [];
             const useChorusModelInOutro = (s.name === "outro" && fadeOutChorus);
+
             if (s.type !== "intro" && s.type !== "bridge" && (s.type !== "outro" || useChorusModelInOutro)) {
-                sectionMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName);
+                
+                // VERSE: ensimmäinen generoidaan, loput käyttää samaa siirretyillä tikeillä
+                if (s.type === "verse") {
+                    if (!savedVerseMelody) {
+                        savedVerseMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, s.type, melodyType, melodyRhythmName);
+                        savedVerseStartBeat = currentBeat;
+                        sectionMelody = savedVerseMelody;
+                    } else {
+                        const beatDiff = currentBeat - savedVerseStartBeat;
+                        const tickDiff = beatDiff * ticksPerBeat;
+                        sectionMelody = savedVerseMelody.map(ev => ({
+                            ...ev,
+                            tick: ev.tick + tickDiff
+                        }));
+                    }
+                }
+                
+                // CHORUS: ensimmäinen generoidaan, loput käyttää samaa siirretyillä tikeillä
+                else if (s.type === "chorus") {
+                    if (!savedChorusMelody) {
+                        savedChorusMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName);
+                        savedChorusStartBeat = currentBeat;
+                        sectionMelody = savedChorusMelody;
+                    } else {
+                        const beatDiff = currentBeat - savedChorusStartBeat;
+                        const tickDiff = beatDiff * ticksPerBeat;
+                        sectionMelody = savedChorusMelody.map(ev => ({
+                            ...ev,
+                            tick: ev.tick + tickDiff
+                        }));
+                    }
+                }
+                
+                // MUUT TYYPIT
+                else {
+                    sectionMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName);
+                }
+                
                 allEvents.push(...sectionMelody);
             }
 
+            // ========== BASSOPATTERNIN VALINTA ==========
             let currentBassPattern = BASS_PATTERNS[defaultBassPatternName];
             if (s.type === "chorus" || useChorusModelInOutro) {
                 currentBassPattern = BASS_PATTERNS["sixteenth"];
@@ -1017,15 +1142,15 @@ function initSynthwaveRadio() {
                 currentBassPattern = BASS_PATTERNS["eighth"];
             }
 
+            // ========== TAHDEITTÄINEN LOOPPI (SOINNUT, BASSO, ARPEGGIO) ==========
             for (let bar = 0; bar < s.bars; bar++) {
                 const chordIdx = (currentBeat / 4 + bar) % chordProg.length;
                 const nextChordIdx = (currentBeat / 4 + bar + 1) % chordProg.length;
                 const chordRoot = chordProg[chordIdx];
                 const nextChordRoot = chordProg[nextChordIdx];
                 
-                // SOINTUJEN DREAMY-ASETTELU (tersit, kvintit, septimit, nonit alueella 48-71)
                 const chordNotes = getDreamyVoiceLedChord(scaleInfo, chordRoot, 4, prevChordNotes);
-                prevChordNotes = chordNotes; 
+                prevChordNotes = chordNotes;
 
                 const startTick = (currentBeat + bar * 4) * ticksPerBeat;
                 const barEndTick = startTick + 4 * ticksPerBeat;
@@ -1035,16 +1160,18 @@ function initSynthwaveRadio() {
                 const applyStop = isLastBarOfVerse && songHasStop;
                 const isArpKickPhase = (s.type === "bridge" && bridgeStyle === "arp_kick_build" && bar < 4);
 
+                // INTRO
                 if (s.isIntro) {
-                    // Generoidaan dynaaminen intro vain kerran ensimmäisellä tahdilla sekaannusten välttämiseksi
                     if (bar === 0) {
                         const introEvents = generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirstIntro, bassMode, swingAmount);
                         allEvents.push(...introEvents);
                     }
-                } else if (s.type === "bridge") {
+                }
+                
+                // BRIDGE
+                else if (s.type === "bridge") {
                     if (!isArpKickPhase) {
                         chordNotes.forEach(note => {
-                            // Korjattu kesto sillan soinnuille ilman breathing-taukoja
                             allEvents.push({ tick: startTick, type: 'note', channel: 2, note, velocity: 50, duration: ticksPerBeat * 4.0 });
                         });
                     }
@@ -1084,9 +1211,11 @@ function initSynthwaveRadio() {
                             allEvents.push({ tick: startTick + i * ticksPerBeat / 2, type: 'note', channel: 9, note: 42, velocity: 50, duration: ticksPerBeat / 8 });
                         }
                     }
-
-                } else {
-                    // Suodinkäyrä CC74 jokaisen sointumuutoksen alussa (pyyhkäisy 40 -> 110)
+                }
+                
+                // VERSE, CHORUS, OUTRO
+                else {
+                    // Suodinkäyrä CC74
                     const sweepSteps = 5;
                     for (let i = 0; i < sweepSteps; i++) {
                         const sweepTick = startTick + Math.floor((i / (sweepSteps - 1)) * 240);
@@ -1094,6 +1223,7 @@ function initSynthwaveRadio() {
                         allEvents.push({ tick: sweepTick, type: 'cc', channel: 2, controller: 74, value: sweepVal });
                     }
 
+                    // SOINNUT (Ch2)
                     chordNotes.forEach(note => {
                         let vel = (s.type === "chorus" || useChorusModelInOutro) ? 82 : 64;
                         if (s.type === "outro") vel = 45;
@@ -1101,12 +1231,12 @@ function initSynthwaveRadio() {
                         if (applyStop) {
                             allEvents.push({ tick: startTick, type: 'note', channel: 2, note, velocity: vel, duration: ticksPerBeat * 0.8 });
                         } else {
-                            // Aina legato, soinnun pituus täydet 4 iskua ilman breathing-välejä
                             allEvents.push({ tick: startTick, type: 'note', channel: 2, note, velocity: vel, duration: ticksPerBeat * 4.0 });
                         }
                     });
                     
-                    const bassNoteLow = chordNotes[0] - 12; 
+                    // BASSO
+                    const bassNoteLow = chordNotes[0] - 12;
                     const bassNoteHigh = chordNotes[0];
                     
                     if (bassMode === "split") {
@@ -1114,7 +1244,7 @@ function initSynthwaveRadio() {
                         allEvents.push({ tick: startTick, type: 'note', channel: 10, note: bassNoteLow, velocity: 105, duration: subDuration });
 
                         for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
-                            if (applyStop && sixteenth >= 4) continue; 
+                            if (applyStop && sixteenth >= 4) continue;
                             const patternPos = Math.floor(sixteenth / 4);
                             if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
                                 const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
@@ -1126,7 +1256,7 @@ function initSynthwaveRadio() {
                         }
                     } else {
                         for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
-                            if (applyStop && sixteenth >= 4) continue; 
+                            if (applyStop && sixteenth >= 4) continue;
                             const patternPos = Math.floor(sixteenth / 4);
                             if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
                                 const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
@@ -1138,6 +1268,7 @@ function initSynthwaveRadio() {
                         }
                     }
                     
+                    // ARPEGGIO (Ch3)
                     if (!applyStop) {
                         const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
                         allEvents.push(...arpEvents);
@@ -1147,6 +1278,7 @@ function initSynthwaveRadio() {
                         allEvents.push(...truncatedArps);
                     }
                     
+                    // MELODIC FILL (Ch5) kertosäkeissä
                     if ((s.type === "chorus" || useChorusModelInOutro) && bar % 2 === 1 && Math.random() < 0.35 && !applyStop) {
                         const fillEvents = generateDynamicMelodicFill(scaleInfo, chordRoot, nextChordRoot, barMelody, startTick, ticksPerBeat);
                         allEvents.push(...fillEvents);
@@ -1154,6 +1286,7 @@ function initSynthwaveRadio() {
                 }
             }
             
+            // ========== RUMPUT (ERILLINEN LOOPPI) ==========
             for (let bar = 0; bar < s.bars; bar++) {
                 const startTick = (currentBeat + bar * 4) * ticksPerBeat;
                 let intensity = (s.type === "chorus") ? 1.0 : (s.type === "verse" ? 0.75 : 0.5);
@@ -1179,11 +1312,13 @@ function initSynthwaveRadio() {
                     continue;
                 }
 
+                // TOM FILL siirryttäessä kertosäkeeseen (alkaa tahdin alusta, jolloin se loppuu ennen uuden osion alkua)
                 if (transitionsToChorus && isLastBarOfSection) {
                     addDynamicTomFill(allEvents, startTick, ticksPerBeat, intensity);
                     continue;
                 }
 
+                // BRIDGEN RUMPUT
                 if (s.type === "bridge") {
                     if (bar >= 8 && !isLastBarOfSection) {
                         allEvents.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
@@ -1191,8 +1326,11 @@ function initSynthwaveRadio() {
                         allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 55, duration: ticksPerBeat / 4 });
                         allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 38, velocity: 65, duration: ticksPerBeat / 4 });
                     }
-                } else {
-                    // KICK logiikka
+                }
+                
+                // VERSE/CHORUS/OUTRO RUMMUT
+                else {
+                    // KICK LOGIIKKA
                     const pattern = kickPattern.pattern;
                     const stepsPerBar = 16;
                     const totalSteps = pattern.length;
@@ -1218,7 +1356,7 @@ function initSynthwaveRadio() {
                         }
                     }
                         
-                    // Snare/clap 
+                    // SNARE / CLAP
                     if (!isLastBarOfSection) {
                         allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 85 * intensity, duration: ticksPerBeat / 2 });
                         allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 38, velocity: 85 * intensity, duration: ticksPerBeat / 2 });
@@ -1236,13 +1374,13 @@ function initSynthwaveRadio() {
                     }
                 }
                 
+                // HI-HAT (sisältää myös avoimen hatun 4. iskulla kertosäkeessä)
                 if (s.type !== "bridge") {
                     if (s.type === "chorus" || useChorusModelInOutro) {
-                        // Kertsin 16-osahatturytmi + Avoin hattu 4. iskulla (indeksi 12)
                         for (let i = 0; i < 16; i++) {
                             const tickOffset = i * ticksPerBeat / 4;
                             if (i === 12) {
-                                // Avoin hattu tahdin 4. iskulla (GM Note 46)
+                                // Avoin hattu (GM Note 46)
                                 allEvents.push({ tick: startTick + tickOffset, type: 'note', channel: 9, note: 46, velocity: 85, duration: ticksPerBeat / 4 });
                             } else {
                                 const isOffbeat = (i % 4 === 2);
@@ -1258,6 +1396,7 @@ function initSynthwaveRadio() {
                 }
             }
 
+            // ========== SOLO (CH6) BRIDGE / OUTRO -OSIOISSA ==========
             if (s.type === "bridge" || (s.type === "outro" && !fadeOutChorus)) {
                 if (s.type === "outro" || bridgeStyle === "space_sweep" || bridgeStyle === "tension_builder") {
                     const soloEvents = generateSolo(scaleInfo, chordProg, s.bars, currentBeat);
@@ -1265,6 +1404,7 @@ function initSynthwaveRadio() {
                 }
             }
             
+            // ========== OUTRO FADEOUT (jos fadeOutChorus käytössä) ==========
             if (s.name === "outro" && fadeOutChorus) {
                 const outroStartTick = currentBeat * ticksPerBeat;
                 const outroTotalTicks = s.bars * 4 * ticksPerBeat;
@@ -1548,7 +1688,7 @@ function initSynthwaveRadio() {
                 const progress = Math.min(1.0, Math.max(0, elapsedTicksInOutro / outroTotalTicks));
                 
                 // Tasaisesti hidastuva tempo ("Vinyl stop")
-                liveBPM = song.bpm * (1.0 - progress * 0.25); 
+                liveBPM = song.bpm * (1.0 - progress * 0.10); 
                 if (liveBPM < 10) liveBPM = 10; 
                 
                 tapeWobbleProgress = progress;
