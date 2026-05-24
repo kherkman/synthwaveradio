@@ -6,7 +6,7 @@ function initSynthwaveRadio() {
     "NEBULA", "OUTRUN", "RADIO", "SILENT", "THUNDER", "URBAN", "VOID", "WILD", "ZERO", 
     "ANALOG", "DIGITAL", "FROZEN", "HOT", "INFINITE", "JET", "KILLER", "LOST", "LUNAR", "MACHINE", 
     "MYSTIC", "NEON", "PHOENIX", "QUANTUM", "RETRO", "SHADOW", "TITAN", "ULTRA", "VINTAGE", "WAVE", "BACK TO THE", 
-    "CYBER", "DARK", "ELECTRIC", "FUTURE", "GHOST", "HYPER", "LASER", "MIDNIGHT"
+    "CYBER", "DARK", "ELECTRIC", "FUTURE", "GHOST", "HYPER", "LASER", "FUTURE", "SPACE", "DEEP SPACE","MIDNIGHT"
     ];
 
     const NOUNS = [ "DRIVE", "WAVE", "GRID", "CITY", "RUN", "HEART", "VOID", "SKY", "DREAMS", 
@@ -17,7 +17,7 @@ function initSynthwaveRadio() {
     "XENON", "YOUTH", "ZONE", "ADVENTURE", "BLADE", "COSMOS", "DYNAMO", "ENERGY", 
     "FALCON", "GALAXY", "HUNTER", "INFERNO", "JUNGLE", "KINGDOM", "LEGEND", 
     "MIRAGE", "NEXUS", "OBLIVION", "PHOENIX", "QUASAR", "REBEL", "SENTINEL", 
-    "TITAN", "ULTIMATE", "VORTEX", "WAVEFORM", "XENON", "ZENITH"
+    "TITAN", "ULTIMATE", "VORTEX", "WAVEFORM", "XENON", "STREETS", "LIGHTS", "ZENITH"
     ];
     
     // Melodian generointityypit
@@ -29,6 +29,7 @@ function initSynthwaveRadio() {
     // Rytmikuviot (kun tyyppi on "rythmic")
     const MELODY_RHYTHMS = {
         "driving":     [1, 0, 0, 1, 0, 0, 1, 0],
+        "driven":      [1, 0, 0, 1, 0, 0, 1, 1],
         "syncopated":  [1, 0, 1, 0, 0, 1, 0, 1],
         "straight":    [1, 1, 1, 1, 1, 1, 1, 1],
         "half_time":   [1, 0, 0, 0, 1, 0, 0, 0],
@@ -75,6 +76,18 @@ function initSynthwaveRadio() {
         // Energiset
         { template: [5, 6, 0, 4], desc: "VI - VII - i - v (Driving energy)" },
         { template: [0, 5, 4, 5], desc: "i - VI - v - VI (Pumping motion)" },
+
+        // Time
+        { template: [0, 5, 6, 4], desc: "i - VI - VII - v (Stargazer waltz)" },
+        { template: [0, 2, 5, 6], desc: "i - III - VI - VII (Cruiser's horizon)" },
+        { template: [4, 5, 0, 6], desc: "v - VI - i - VII (Pulse from the past)" },
+        { template: [0, 5, 3, 3], desc: "i - VI - iv - iv (Lucid dreamer)" },
+        { template: [0, 6, 0, 5], desc: "i - VII - i - VI (Lost transmission)" },
+        { template: [0, 5, 5, 6], desc: "i - VI - VI - VII (Reflection pool)" },
+        { template: [0, 6, 6, 5], desc: "i - VII - VII - VI (Echoes of 1984)" },
+        { template: [0, 5, 0, 0], desc: "i - VI - i - i (Midnight resolution)" },
+        { template: [5, 5, 0, 6], desc: "VI - VI - i - VII (Before the sunrise)" },
+        { template: [2, 5, 0, 6], desc: "III - VI - i - VII (Soft glow break)" },
 
         // Pidemmät jaksot
         { template: [0, 5, 2, 6, 0, 5, 6, 5], desc: "i - VI - III - VII - i - VI - VII - VI (Extended journey)" }
