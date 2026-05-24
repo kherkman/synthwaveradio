@@ -320,7 +320,14 @@ function initSynthwaveRadio() {
                     if (currentScaleDegree < 0) currentScaleDegree += 7;
                     if (currentScaleDegree > 14) currentScaleDegree -= 7;
                     
-                    const baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
+                    // Synthwave-tyylinen oktaavivalinta: kertosäkeessä oktaavi 4, säkeistössä oktaavi 3-4
+                    let baseOctave = 4; // Oletus oktaavi 4 (keskialue)
+                    if (sectionType === "chorus" || sectionType === "chorus2") {
+                        baseOctave = 4; // Kertosäkeessä pysytään oktaavilla 4 (ei liian korkealla)
+                    } else if (sectionType === "verse" || sectionType === "verse2") {
+                        baseOctave = Math.random() < 0.6 ? 4 : 3; // 60% oktaavi 4, 40% oktaavi 3
+                    }
+                    
                     let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
 
                     // Jos sävel ylittää ylärajan, madalletaan sitä oktaavi (12 sävelaskelta) kerrallaan
@@ -1491,7 +1498,7 @@ function initSynthwaveRadio() {
                 const progress = Math.min(1.0, Math.max(0, elapsedTicksInOutro / outroTotalTicks));
                 
                 // Tasaisesti hidastuva tempo ("Vinyl stop")
-                liveBPM = song.bpm * (1.0 - progress * 0.85); 
+                liveBPM = song.bpm * (1.0 - progress * 0.45); 
                 if (liveBPM < 10) liveBPM = 10; 
                 
                 tapeWobbleProgress = progress;
