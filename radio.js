@@ -904,14 +904,13 @@ function initSynthwaveRadio() {
                 hasChorus2: true
             },
             {
-                name: "SIMPLE",
+                name: "SHORT",
                 sections: [
                     { name: "intro", type: "intro", isIntro: true },
                     { name: "verse", type: "verse" },
                     { name: "chorus", type: "chorus" },
                     { name: "verse2", type: "verse" },      
                     { name: "chorus2", type: "chorus" },    
-                    { name: "chorus2", type: "chorus" },
                     { name: "outro", type: "outro" }
                 ],
                 hasBridge: false,
@@ -919,7 +918,7 @@ function initSynthwaveRadio() {
                 hasChorus2: false
             },
             {
-                name: "3 VERSES",
+                name: "LONG",
                 sections: [
                     { name: "intro", type: "intro", isIntro: true },
                     { name: "verse", type: "verse" },
@@ -1423,32 +1422,35 @@ function initSynthwaveRadio() {
         }
 
         // LOPPUUN JÄÄVÄ YKSITTÄINEN SOINTU, JOKA FADEAA ULOS
-        const finalChordTick = currentBeat * ticksPerBeat;
-        const finalChordNotes = getDreamyVoiceLedChord(scaleInfo, chordProg[0], 4, prevChordNotes); // palataan perussointuun
-        
-        finalChordNotes.forEach(note => {
-            allEvents.push({
-                tick: finalChordTick,
-                type: 'note',
-                channel: 2, // Ch2 Pad
-                note: note,
-                velocity: 80,
-                duration: ticksPerBeat * 8 // Kestää 8 iskua
+        // Älä lisää loppusointua, jos on fadeOutChorus (koska se fadeaa jo itse)
+        if (!fadeOutChorus) {
+            const finalChordTick = currentBeat * ticksPerBeat;
+            const finalChordNotes = getDreamyVoiceLedChord(scaleInfo, chordProg[0], 4, prevChordNotes); // palataan perussointuun
+            
+            finalChordNotes.forEach(note => {
+                allEvents.push({
+                    tick: finalChordTick,
+                    type: 'note',
+                    channel: 2, // Ch2 Pad
+                    note: note,
+                    velocity: 80,
+                    duration: ticksPerBeat * 8 // Kestää 8 iskua
+                });
             });
-        });
-        
-        // Kaunis loppufeidaus viimeiselle soinnulle Ch2
-        const finalFadeSteps = 24;
-        for (let i = 0; i <= finalFadeSteps; i++) {
-            const stepTick = finalChordTick + Math.floor((i / finalFadeSteps) * ticksPerBeat * 8);
-            const volVal = Math.floor((1.0 - (i / finalFadeSteps)) * 110);
-            allEvents.push({
-                tick: stepTick,
-                type: 'cc',
-                channel: 2,
-                controller: 7,
-                value: volVal
-            });
+            
+            // Kaunis loppufeidaus viimeiselle soinnulle Ch2
+            const finalFadeSteps = 24;
+            for (let i = 0; i <= finalFadeSteps; i++) {
+                const stepTick = finalChordTick + Math.floor((i / finalFadeSteps) * ticksPerBeat * 8);
+                const volVal = Math.floor((1.0 - (i / finalFadeSteps)) * 110);
+                allEvents.push({
+                    tick: stepTick,
+                    type: 'cc',
+                    channel: 2,
+                    controller: 7,
+                    value: volVal
+                });
+            }
         }
 
         const sidechainEvents = [];
