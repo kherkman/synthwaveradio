@@ -1,14 +1,15 @@
 /**
  * WAV Playback Engine for Synthwave Radio
- * Features: Multi-sampler, Web Audio DSP, Crossfade Looping, Sidechain Ducking,
- * Warm Saturation, Lush Procedural Reverb, and Brickwall Limiter.
+ * Features: Polyphonic Sampler Voices, Web Audio LFO (CC 1 Vibrato), Real-time Pitch Bend,
+ * Sidechain Ducking, Warm Saturation, Lush Reverb, and Custom WAV Loading.
  */
 
 (function() {
     let audioCtx = null;
     let audioEnabled = false;
     let audioBuffers = {};
-    const activeWavNotes = {}; // Keeps track of playing instances: "channel_note"
+    const activeVoices = []; // Keeps track of active instrumental voices
+    const activeVoiceCounts = {}; // Track count of active voices per sample for UI glow
 
     // Map instrument and drum names to root folder WAV files
     const SAMPLE_FILES = {
@@ -31,26 +32,26 @@
         'clap': 'clap.wav'
     };
 
+    // Initialize counts
+    Object.keys(SAMPLE_FILES).forEach(key => activeVoiceCounts[key] = 0);
+
     // Routing Nodes
     let masterPreGain = null;
-    let bassGainNode = null; // Dedicated gain node for bass channels to allow ducking
+    let bassGainNode = null; 
     let saturationNode = null;
     let reverbNode = null;
     let reverbDryGain = null;
     let reverbWetGain = null;
     let limiterNode = null;
 
-    // Sustained channels that require crossfade looping
-    const SUSTAINED_CHANNELS = [1, 2, 3, 4, 5, 6, 7, 10, 11];
-
-    // Map MIDI channels and notes to sample names
+    // Helper to map MIDI channels and notes to sample names
     function getSampleName(channel, note) {
         if (channel === 1) return 'bass';
         if (channel === 2) return 'chords';
         if (channel === 3) return 'arp';
-        if (channel === 4) return 'lead';
+        if (channel === 4) return 'melody'; // Melody on Channel 4 (plays melody.wav)
         if (channel === 5) return 'fills';
-        if (channel === 6) return 'melody';
+        if (channel === 6) return 'lead';   // Lead Solo on Channel 6 (plays lead.wav)
         if (channel === 7) return 'mid-bass';
         if (channel === 10) return 'sub-bass';
         if (channel === 11) return 'sweep';
@@ -66,6 +67,29 @@
             if (note === 41) return 'tom3';
         }
         return null;
+    }
+
+    // UI Voice glowing activation helpers
+    function incrementVoiceCount(sampleKey) {
+        if (!activeVoiceCounts[sampleKey]) activeVoiceCounts[sampleKey] = 0;
+        activeVoiceCounts[sampleKey]++;
+        
+        const btn = document.getElementById(`wav-btn-${sampleKey}`);
+        if (btn) {
+            btn.classList.add('wav-playing');
+        }
+    }
+
+    function decrementVoiceCount(sampleKey) {
+        if (activeVoiceCounts[sampleKey] > 0) {
+            activeVoiceCounts[sampleKey]--;
+        }
+        if (activeVoiceCounts[sampleKey] === 0) {
+            const btn = document.getElementById(`wav-btn-${sampleKey}`);
+            if (btn) {
+                btn.classList.remove('wav-playing');
+            }
+        }
     }
 
     // Generate Warm Saturation Curve
@@ -107,25 +131,21 @@
         masterPreGain = audioCtx.createGain();
         masterPreGain.gain.setValueAtTime(0.75, audioCtx.currentTime);
 
-        // Dedicated Ducking/Sidechain node for Bass
         bassGainNode = audioCtx.createGain();
         bassGainNode.gain.setValueAtTime(1.0, audioCtx.currentTime);
 
-        // Warm Saturation
         saturationNode = audioCtx.createWaveShaper();
-        saturationNode.curve = makeDistortionCurve(15); // Classic warmth
+        saturationNode.curve = makeDistortionCurve(15); 
         saturationNode.oversample = '4x';
 
-        // Reverb System
         reverbNode = audioCtx.createConvolver();
-        reverbNode.buffer = createReverbImpulseResponse(audioCtx, 2.5, 3.2); // Lush retro-space reverb
+        reverbNode.buffer = createReverbImpulseResponse(audioCtx, 2.5, 3.2); 
 
         reverbDryGain = audioCtx.createGain();
         reverbWetGain = audioCtx.createGain();
         reverbDryGain.gain.setValueAtTime(0.80, audioCtx.currentTime);
-        reverbWetGain.gain.setValueAtTime(0.22, audioCtx.currentTime); // 22% wet mix
+        reverbWetGain.gain.setValueAtTime(0.22, audioCtx.currentTime); 
 
-        // Brickwall Limiter to glue the sound and prevent clipping
         limiterNode = audioCtx.createDynamicsCompressor();
         limiterNode.threshold.setValueAtTime(-1.0, audioCtx.currentTime);
         limiterNode.knee.setValueAtTime(0.0, audioCtx.currentTime);
@@ -135,21 +155,17 @@
 
         // 2. Connect the Signal Chain
         bassGainNode.connect(masterPreGain);
-        
         masterPreGain.connect(saturationNode);
 
-        // Split dry/wet parallel reverb processing
         saturationNode.connect(reverbDryGain);
         saturationNode.connect(reverbNode);
         reverbNode.connect(reverbWetGain);
 
-        // Combine into Master Limiter
         reverbDryGain.connect(limiterNode);
         reverbWetGain.connect(limiterNode);
-
         limiterNode.connect(audioCtx.destination);
 
-        // 3. Load Samples into RAM asynchronously
+        // 3. Load Samples asynchronously
         updateStatus("Loading WAV audio engine...");
         const promises = Object.keys(SAMPLE_FILES).map(async (key) => {
             try {
@@ -157,7 +173,7 @@
                 const arrayBuffer = await response.arrayBuffer();
                 audioBuffers[key] = await audioCtx.decodeAudioData(arrayBuffer);
             } catch (err) {
-                console.error(`Failed to load WAV file: ${SAMPLE_FILES[key]}`, err);
+                console.warn(`Failed to fetch default WAV: ${SAMPLE_FILES[key]}, slots awaiting custom upload.`);
             }
         });
 
@@ -171,8 +187,8 @@
         const now = audioCtx.currentTime;
         bassGainNode.gain.cancelScheduledValues(now);
         bassGainNode.gain.setValueAtTime(bassGainNode.gain.value, now);
-        bassGainNode.gain.linearRampToValueAtTime(0.12, now + 0.025); // Fast compression down to -18dB
-        bassGainNode.gain.exponentialRampToValueAtTime(1.0, now + 0.16); // Smooth return to normal level
+        bassGainNode.gain.linearRampToValueAtTime(0.12, now + 0.025); 
+        bassGainNode.gain.exponentialRampToValueAtTime(1.0, now + 0.16); 
     }
 
     // Helper to update status bar in HTML if present
@@ -181,132 +197,155 @@
         if (el) el.innerHTML = `⚡ ${text} ⚡`;
     }
 
-    // Custom Scheduler Class for Sustained Seamless Crossfade Looping
-    class LoopingNote {
-        constructor(ctx, buffer, midiNote, velocity, destNode) {
+    // Global custom WAV loader exporter
+    window.loadCustomWav = async function(sampleKey, file) {
+        if (!audioCtx) {
+            await initAudioEngine();
+        }
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            audioBuffers[sampleKey] = await audioCtx.decodeAudioData(arrayBuffer);
+            updateStatus(`LOADED CUSTOM ${sampleKey.toUpperCase()}.WAV`);
+            
+            // Short neon flash to confirm upload
+            const btn = document.getElementById(`wav-btn-${sampleKey}`);
+            if (btn) {
+                btn.style.borderColor = 'var(--cyan)';
+                setTimeout(() => { btn.style.borderColor = ''; }, 600);
+            }
+        } catch (err) {
+            console.error(`Failed to load custom WAV for ${sampleKey}:`, err);
+            alert(`Virhe käsiteltäessä näytettä ${sampleKey}. Varmista, että tiedosto on korruptoimaton .wav-muotoinen äänitiedosto.`);
+        }
+    };
+
+    /**
+     * SamplerVoice: Versatile envelope-driven voice for all instruments.
+     * Supports real-time Pitch Bend and LFO Modulation Vibrato (CC 1).
+     */
+    class SamplerVoice {
+        constructor(ctx, buffer, midiNote, velocity, destNode, sampleKey, channel) {
             this.ctx = ctx;
             this.buffer = buffer;
             this.midiNote = midiNote;
             this.velocity = velocity;
             this.destNode = destNode;
-            this.activeSources = [];
+            this.sampleKey = sampleKey;
+            this.channel = channel;
             this.stopped = false;
-            
-            // Pitch Shifting from base C4 (MIDI 60)
-            this.playbackRate = Math.pow(2, (midiNote - 60) / 12);
+            this.cleaned = false;
 
-            // Filter out high frequencies on soft velocities
+            // Pitch Shifting in cents relative to base C4 (MIDI 60)
+            this.baseDetune = (midiNote - 60) * 100;
+            this.pitchBendCents = 0;
+
+            // 1. Source Node
+            this.srcNode = ctx.createBufferSource();
+            this.srcNode.buffer = buffer;
+            this.srcNode.detune.setValueAtTime(this.baseDetune, ctx.currentTime);
+
+            // 2. Filter Node (Velocity sensitive)
             this.filterNode = ctx.createBiquadFilter();
             this.filterNode.type = "lowpass";
             const normVel = velocity / 127;
-            const cutoffFreq = 350 + (normVel * normVel) * 19650; // Exponential lowpass feeling
+            const cutoffFreq = 450 + (normVel * normVel) * 19550;
             this.filterNode.frequency.setValueAtTime(cutoffFreq, ctx.currentTime);
 
-            // Note Level Gain Node
-            this.noteGainNode = ctx.createGain();
-            this.noteGainNode.gain.setValueAtTime(normVel, ctx.currentTime);
+            // 3. Vibrato LFO Modulator (CC 1 Mod Wheel)
+            this.lfo = ctx.createOscillator();
+            this.lfo.frequency.setValueAtTime(6.0, ctx.currentTime); // 6 Hz vibrato
+            this.lfoGain = ctx.createGain();
+            this.lfoGain.gain.setValueAtTime(0.0, ctx.currentTime); 
 
-            // Audio routing: NoteSource -> Filter -> NoteGain -> Destination Group
-            this.filterNode.connect(this.noteGainNode);
-            this.noteGainNode.connect(destNode);
+            this.lfo.connect(this.lfoGain);
+            this.lfoGain.connect(this.srcNode.detune);
+
+            // 4. Volume Gain Node with soft ADSR envelope
+            this.gainNode = ctx.createGain();
+            this.gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
+
+            // Audio Routing
+            this.srcNode.connect(this.filterNode);
+            this.filterNode.connect(this.gainNode);
+            this.gainNode.connect(destNode);
+
+            this.lfo.start();
+            incrementVoiceCount(sampleKey);
 
             this.start();
         }
 
         start() {
             const now = this.ctx.currentTime;
-            // Schedule the first segment: 0.0s to 1.4s
-            this.scheduleSegment(now, 0.0, 1.4, true);
+            this.gainNode.gain.cancelScheduledValues(now);
+            this.gainNode.gain.linearRampToValueAtTime(this.velocity / 127, now + 0.025); // 25ms attack
+            this.srcNode.start(now);
+
+            // Cleanup when buffer finishes playing naturally
+            this.srcNode.onended = () => {
+                this.cleanup();
+            };
         }
 
-        scheduleSegment(startTime, offset, duration, isInitial) {
-            if (this.stopped) return;
+        setPitchBend(pitchValue) {
+            // MIDI pitch bend is 0..16383, center is 8192. Detune range ±2 semitones (±200 cents)
+            const bendRatio = (pitchValue - 8192) / 8192;
+            this.pitchBendCents = bendRatio * 200;
+            
+            const now = this.ctx.currentTime;
+            this.srcNode.detune.setTargetAtTime(this.baseDetune + this.pitchBendCents, now, 0.035);
+        }
 
-            const srcNode = this.ctx.createBufferSource();
-            srcNode.buffer = this.buffer;
-            srcNode.playbackRate.value = this.playbackRate;
-
-            const segmentGain = this.ctx.createGain();
-            segmentGain.gain.setValueAtTime(0, startTime);
-
-            srcNode.connect(segmentGain);
-            segmentGain.connect(this.filterNode);
-
-            this.activeSources.push({ src: srcNode, gain: segmentGain });
-
-            // Scale timing markers according to playback rate (higher pitch = shorter file duration)
-            const crossfadeDuration = 0.22; // 220ms crossfade overlap
-            const scaledXfade = crossfadeDuration / this.playbackRate;
-            const scaledDuration = duration / this.playbackRate;
-
-            // Attack Fade In
-            if (isInitial) {
-                segmentGain.gain.linearRampToValueAtTime(1.0, startTime + 0.02);
-            } else {
-                segmentGain.gain.linearRampToValueAtTime(1.0, startTime + scaledXfade);
-            }
-
-            srcNode.start(startTime, offset);
-
-            // Fade Out Scheduling
-            const stopTime = startTime + scaledDuration;
-            const fadeOutStartTime = stopTime - scaledXfade;
-
-            segmentGain.gain.setValueAtTime(1.0, fadeOutStartTime);
-            segmentGain.gain.linearRampToValueAtTime(0.0, stopTime);
-            srcNode.stop(stopTime + 0.1);
-
-            // Cleanup garbage collection
-            setTimeout(() => {
-                this.activeSources = this.activeSources.filter(item => item.src !== srcNode);
-            }, (scaledDuration + 0.5) * 1000);
-
-            // Schedule transition loop: Loop region starts at 0.4s and ends at 1.4s (Loop length = 1.0s)
-            const nextSegmentStartTime = fadeOutStartTime;
-            const delayMs = (fadeOutStartTime - this.ctx.currentTime) * 1000;
-
-            if (delayMs > 0) {
-                this.nextTimeout = setTimeout(() => {
-                    this.scheduleSegment(this.ctx.currentTime, 0.4, 1.0, false);
-                }, delayMs);
-            } else {
-                this.scheduleSegment(this.ctx.currentTime, 0.4, 1.0, false);
-            }
+        setVibratoDepth(ccValue) {
+            // Map Mod Wheel 0..127 to 0..45 cents of pitch vibrato modulation depth
+            const depthCents = (ccValue / 127) * 45;
+            const now = this.ctx.currentTime;
+            this.lfoGain.gain.setTargetAtTime(depthCents, now, 0.035);
         }
 
         stop() {
+            if (this.stopped) return;
             this.stopped = true;
-            clearTimeout(this.nextTimeout);
+            
             const now = this.ctx.currentTime;
-
-            // Soft release fadeout
-            this.noteGainNode.gain.setValueAtTime(this.noteGainNode.gain.value, now);
-            this.noteGainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+            this.gainNode.gain.cancelScheduledValues(now);
+            this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now);
+            this.gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.16); // 160ms soft release
 
             setTimeout(() => {
-                this.activeSources.forEach(item => {
-                    try { item.src.stop(); } catch(e) {}
-                });
-                this.noteGainNode.disconnect();
-                this.filterNode.disconnect();
-            }, 250);
+                try { this.srcNode.stop(); } catch(e) {}
+                try { this.lfo.stop(); } catch(e) {}
+                this.cleanup();
+            }, 200);
+        }
+
+        cleanup() {
+            if (this.cleaned) return;
+            this.cleaned = true;
+            decrementVoiceCount(this.sampleKey);
+
+            const idx = activeVoices.indexOf(this);
+            if (idx > -1) activeVoices.splice(idx, 1);
+
+            try { this.gainNode.disconnect(); } catch(e) {}
+            try { this.filterNode.disconnect(); } catch(e) {}
+            try { this.lfoGain.disconnect(); } catch(e) {}
         }
     }
 
     // Play Single Drum One-Shot
-    function playOneShot(buffer, midiNote, velocity, destNode) {
+    function playOneShot(buffer, midiNote, velocity, destNode, sampleKey) {
         if (!audioCtx || !buffer) return;
 
         const srcNode = audioCtx.createBufferSource();
         srcNode.buffer = buffer;
 
-        // Drum pitch adjustments (Hats and Toms slightly shifted based on note heights)
-        const playbackRate = Math.pow(2, (midiNote - 42) / 36); // Slight standard shifting
+        // Drum pitch shifting (Hats and Toms slightly shifted based on note heights)
+        const playbackRate = Math.pow(2, (midiNote - 42) / 36); 
         srcNode.playbackRate.value = Math.max(0.5, Math.min(2.0, playbackRate));
 
         const normVel = velocity / 127;
 
-        // Apply dynamic velocity-sensitive high-cut
         const filterNode = audioCtx.createBiquadFilter();
         filterNode.type = "lowpass";
         const cutoffFreq = 800 + (normVel * normVel) * 19200;
@@ -319,7 +358,14 @@
         filterNode.connect(gainNode);
         gainNode.connect(destNode);
 
+        incrementVoiceCount(sampleKey);
         srcNode.start(audioCtx.currentTime);
+
+        srcNode.onended = () => {
+            decrementVoiceCount(sampleKey);
+            gainNode.disconnect();
+            filterNode.disconnect();
+        };
     }
 
     // Handle Note-On Event Interception
@@ -331,7 +377,7 @@
             triggerSidechainDucking();
         }
 
-        // Avoid duplicating Ch8 kick triggers as audio voices (purely used as control trigger)
+        // Avoid duplicating Ch8 kick triggers as audio voices
         if (channel === 8) return;
 
         const sampleKey = getSampleName(channel, note);
@@ -340,25 +386,23 @@
         const buffer = audioBuffers[sampleKey];
         if (!buffer) return;
 
-        const activeKey = `${channel}_${note}`;
+        // Stop existing overlapping voice on same pitch on this channel
+        activeVoices.forEach(voice => {
+            if (voice.channel === channel && voice.midiNote === note) {
+                voice.stop();
+            }
+        });
 
-        // Stop existing overlapping voice on same pitch
-        if (activeWavNotes[activeKey]) {
-            try { activeWavNotes[activeKey].stop(); } catch(e) {}
-            delete activeWavNotes[activeKey];
-        }
-
-        // Route bass elements to BassGainNode, everything else to masterPreGain
         const isBass = (channel === 1 || channel === 7 || channel === 10);
         const targetOutput = isBass ? bassGainNode : masterPreGain;
 
-        if (SUSTAINED_CHANNELS.includes(channel)) {
-            // Sustained looping note
-            const loopingNote = new LoopingNote(audioCtx, buffer, note, velocity, targetOutput);
-            activeWavNotes[activeKey] = loopingNote;
-        } else {
+        if (channel === 9) {
             // One-shot drum hit
-            playOneShot(buffer, note, velocity, targetOutput);
+            playOneShot(buffer, note, velocity, targetOutput, sampleKey);
+        } else {
+            // Sustained or expressive instrumental voice (Bass, Chords, Lead, Melody, Arp, Sweep)
+            const voice = new SamplerVoice(audioCtx, buffer, note, velocity, targetOutput, sampleKey, channel);
+            activeVoices.push(voice);
         }
     }
 
@@ -366,11 +410,11 @@
     function handleWavNoteOff(channel, note) {
         if (!audioEnabled || !audioCtx) return;
         
-        const activeKey = `${channel}_${note}`;
-        if (activeWavNotes[activeKey]) {
-            try { activeWavNotes[activeKey].stop(); } catch(e) {}
-            delete activeWavNotes[activeKey];
-        }
+        activeVoices.forEach(voice => {
+            if (voice.channel === channel && voice.midiNote === note) {
+                voice.stop();
+            }
+        });
     }
 
     // Global MIDI Hook mapped directly from radio.js
@@ -388,11 +432,29 @@
                 handleWavNoteOff(channel, note);
             }
         } else if (event.type === 'cc') {
-            // Intercept Master Volume (CC 7) or Cutoff (CC 74) if desired
+            const channel = event.channel;
+            
+            // CC 7: Global Volume pre-gain scaling
             if (event.controller === 7 && masterPreGain && audioCtx) {
                 const scaledVol = (event.value / 127) * 0.75;
                 masterPreGain.gain.setValueAtTime(scaledVol, audioCtx.currentTime);
             }
+            
+            // CC 1: Real-time Vibrato Depth scaling (on Lead solo Channel 6, etc.)
+            activeVoices.forEach(voice => {
+                if (voice.channel === channel) {
+                    voice.setVibratoDepth(event.value);
+                }
+            });
+        } else if (event.type === 'pitch') {
+            const channel = event.channel;
+            
+            // Real-time Pitch Bend detune scaling
+            activeVoices.forEach(voice => {
+                if (voice.channel === channel) {
+                    voice.setPitchBend(event.value);
+                }
+            });
         }
     };
 
@@ -401,7 +463,7 @@
         const audioBtn = document.createElement('button');
         audioBtn.id = 'audioToggleBtn';
         audioBtn.className = 'toggle-btn';
-        audioBtn.style.right = '180px'; // Places button nicely next to [ COLLAPSE ]
+        audioBtn.style.right = '180px'; 
         audioBtn.innerText = 'AUDIO: OFF';
         document.body.appendChild(audioBtn);
 
@@ -413,7 +475,6 @@
                 audioBtn.style.color = 'var(--cyan)';
                 audioBtn.style.textShadow = '0 0 5px var(--cyan)';
                 
-                // Resume Context or initialize RAM samples on first interaction
                 if (!audioCtx) {
                     await initAudioEngine();
                 } else if (audioCtx.state === 'suspended') {
@@ -425,16 +486,11 @@
                 audioBtn.style.color = 'var(--magenta)';
                 audioBtn.style.textShadow = '0 0 5px var(--magenta)';
                 
-                // Suspend the audio context to stop calculations and sound immediately
                 if (audioCtx && audioCtx.state === 'running') {
                     await audioCtx.suspend();
                 }
                 
-                // Cleanup active notes array
-                Object.keys(activeWavNotes).forEach(key => {
-                    try { activeWavNotes[key].stop(); } catch(e) {}
-                    delete activeWavNotes[key];
-                });
+                activeVoices.forEach(voice => voice.stop());
             }
         });
     });
