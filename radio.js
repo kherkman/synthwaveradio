@@ -1498,7 +1498,7 @@ function initSynthwaveRadio() {
                 const progress = Math.min(1.0, Math.max(0, elapsedTicksInOutro / outroTotalTicks));
                 
                 // Tasaisesti hidastuva tempo ("Vinyl stop")
-                liveBPM = song.bpm * (1.0 - progress * 0.45); 
+                liveBPM = song.bpm * (1.0 - progress * 0.25); 
                 if (liveBPM < 10) liveBPM = 10; 
                 
                 tapeWobbleProgress = progress;
