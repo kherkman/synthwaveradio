@@ -568,6 +568,68 @@
             padding: 10px;
         }
         
+        /* ── Custom WAV Uploader Slots ────────────────────────────────── */
+        .wav-uploader-panel {
+            background: #000000aa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 2px solid #161520;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.9);
+        }
+        .uploader-title {
+            color: var(--cyan);
+            font-size: 11px;
+            display: block;
+            margin-bottom: 12px;
+            letter-spacing: 1.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 0 0 5px rgba(0, 255, 238, 0.5);
+        }
+        .wav-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        @media (max-width: 580px) {
+            .wav-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        .wav-upload-btn {
+            background: linear-gradient(180deg, #181623 0%, #0a0a0f 100%);
+            border: 1px solid #ff008044;
+            color: #8aa;
+            padding: 8px 4px;
+            border-radius: 5px;
+            font-size: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            display: block;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .wav-upload-btn:hover {
+            border-color: var(--cyan);
+            color: #fff;
+            box-shadow: 0 0 8px rgba(0, 255, 238, 0.4);
+        }
+        /* Glowing Cyan highlighting when WAV is playing */
+        .wav-upload-btn.wav-playing {
+            background: var(--cyan);
+            color: #000;
+            border-color: #fff;
+            font-weight: bold;
+            box-shadow: 0 0 15px var(--cyan);
+            text-shadow: none;
+        }
+
         .status {
             color: #88ff88;
             font-size: 11px;
@@ -637,6 +699,7 @@
         body.collapsed-mode .dials-row,
         body.collapsed-mode .controls,
         body.collapsed-mode .midi-selector,
+        body.collapsed-mode .wav-uploader-panel,
         body.collapsed-mode .info-panel,
         body.collapsed-mode .status {
             display: none !important;
@@ -780,10 +843,69 @@
         </select>
         <button id="exportMidiBtn" class="btn">💾 EXPORT MIDI FILE</button>
     </div>
+
+    <!-- Custom WAV Uploaders / Active Voice visualizer -->
+    <div class="wav-uploader-panel">
+        <div class="uploader-title">📁 CUSTOM WAV SAMPLER SLOTS (TAP TO LOAD CUSTOM .WAV)</div>
+        <div class="wav-grid">
+            <!-- Instrumental Slots -->
+            <label class="wav-upload-btn" id="wav-btn-bass" for="upload-bass">Bass</label>
+            <input type="file" id="upload-bass" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('bass', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-chords" for="upload-chords">Chords</label>
+            <input type="file" id="upload-chords" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('chords', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-arp" for="upload-arp">Arp</label>
+            <input type="file" id="upload-arp" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('arp', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-melody" for="upload-melody">Melody</label>
+            <input type="file" id="upload-melody" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('melody', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-fills" for="upload-fills">Fills</label>
+            <input type="file" id="upload-fills" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('fills', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-lead" for="upload-lead">Lead Solo</label>
+            <input type="file" id="upload-lead" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('lead', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-mid-bass" for="upload-mid-bass">Mid-Bass</label>
+            <input type="file" id="upload-mid-bass" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('mid-bass', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-sub-bass" for="upload-sub-bass">Sub-Bass</label>
+            <input type="file" id="upload-sub-bass" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('sub-bass', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-sweep" for="upload-sweep">Sweep FX</label>
+            <input type="file" id="upload-sweep" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('sweep', this.files[0])">
+
+            <!-- Drum Slots -->
+            <label class="wav-upload-btn" id="wav-btn-kick" for="upload-kick">Kick</label>
+            <input type="file" id="upload-kick" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('kick', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-snare" for="upload-snare">Snare</label>
+            <input type="file" id="upload-snare" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('snare', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-clap" for="upload-clap">Clap</label>
+            <input type="file" id="upload-clap" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('clap', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-closed-hat" for="upload-closed-hat">Closed Hat</label>
+            <input type="file" id="upload-closed-hat" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('closed-hat', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-open-hat" for="upload-open-hat">Open Hat</label>
+            <input type="file" id="upload-open-hat" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('open-hat', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-tom1" for="upload-tom1">Tom 1</label>
+            <input type="file" id="upload-tom1" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('tom1', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-tom2" for="upload-tom2">Tom 2</label>
+            <input type="file" id="upload-tom2" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('tom2', this.files[0])">
+
+            <label class="wav-upload-btn" id="wav-btn-tom3" for="upload-tom3">Tom 3</label>
+            <input type="file" id="upload-tom3" accept="audio/wav" style="display:none;" onchange="if(this.files[0]) window.loadCustomWav('tom3', this.files[0])">
+        </div>
+    </div>
     
     <div class="info-panel">
         <span>LEGATO SYNTHWAVE BROADCAST</span> • Portaaton asteikkoliike • Sidotut legatolinjat • Ei riitasointuja • Suodatinajot<br>
-        <span>Ch1 Bass</span> | <span>Ch2 Chords (Dream Voicing)</span> | <span>Ch3 Arpeggio (Swing)</span> | <span>Ch4 Lead (Thirds/Sixths)</span> | <span>Ch5 Consonant Runs</span> | <span>Ch6 Solo (Vibrato/Cresc)</span> | <span>Ch7 Mid-Bass</span> | <span>Ch8 Kick SC</span> | <span>Ch9 Drums & Claps</span> | <span>Ch10 Sub-Bass</span> | <span>Ch11 Noise FX Sweep</span>
+        <span>Ch1 Bass</span> | <span>Ch2 Chords (Dream Voicing)</span> | <span>Ch3 Arpeggio (Swing)</span> | <span>Ch4 Melody Synth</span> | <span>Ch5 Consonant Runs</span> | <span>Ch6 Lead Solo</span> | <span>Ch7 Mid-Bass</span> | <span>Ch8 Kick SC</span> | <span>Ch9 Drums & Claps</span> | <span>Ch10 Sub-Bass</span> | <span>Ch11 Noise FX Sweep</span>
     </div>
     
     <div class="status" id="status">⚡ SYNTHWAVE • READY TO BROADCAST ⚡</div>
