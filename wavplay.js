@@ -2,7 +2,7 @@
  * WAV Playback Engine for Synthwave Radio
  * Features: Polyphonic Sampler Voices, Web Audio LFO (CC 1 Vibrato), Real-time Pitch Bend,
  * Sidechain Ducking, Warm Saturation, Lush Reverb, and Custom WAV Loading with VOL/PAN.
- * Now supports dynamic multi-file random variants per song.
+ * Enhanced with channel-specific HPF/LPF, Master HPF/LPF, and dedicated Chorus + Delay for Melody & Lead.
  */
 
 (function() {
@@ -14,7 +14,6 @@
     const activeVoiceCounts = {}; // Track count of active voices per sample for UI glow
 
     // Map instrument and drum names to root folder WAV files.
-    // Added alternative 'arp2.wav' and 'bass2.wav' options.
     const SAMPLE_FILES = {
         'arp': ['arp.wav', 'arp2.wav'],
         'bass': ['bass.wav', 'bass2.wav'],
@@ -37,6 +36,27 @@
 
     const DRUM_KEYS = ['kick', 'snare', 'clap', 'closed-hat', 'open-hat', 'tom1', 'tom2', 'tom3'];
 
+    // Tailored channel filters to keep the mix clean and prevent frequency build-up
+    const CHANNEL_FILTERS = {
+        'bass': { hpf: 30, lpf: 800 },
+        'sub-bass': { hpf: 20, lpf: 180 },
+        'mid-bass': { hpf: 75, lpf: 1500 },
+        'kick': { hpf: 30, lpf: 3500 },
+        'snare': { hpf: 150, lpf: 10000 },
+        'clap': { hpf: 180, lpf: 9000 },
+        'closed-hat': { hpf: 350, lpf: 16000 },
+        'open-hat': { hpf: 300, lpf: 16000 },
+        'tom1': { hpf: 90, lpf: 7000 },
+        'tom2': { hpf: 80, lpf: 6000 },
+        'tom3': { hpf: 70, lpf: 5000 },
+        'chords': { hpf: 150, lpf: 9000 },
+        'arp': { hpf: 140, lpf: 11000 },
+        'melody': { hpf: 130, lpf: 12000 },
+        'lead': { hpf: 120, lpf: 12000 },
+        'fills': { hpf: 140, lpf: 11000 },
+        'sweep': { hpf: 100, lpf: 14000 }
+    };
+
     // Initialize custom volume/pan settings if not already present globally
     if (!window.wavSettings) {
         window.wavSettings = {};
@@ -44,8 +64,13 @@
     Object.keys(SAMPLE_FILES).forEach(key => {
         activeVoiceCounts[key] = 0;
         if (!window.wavSettings[key]) {
-            // Set non-drums to 60% default (0.6) and drums to 80% default (0.8)
-            const defaultVol = DRUM_KEYS.includes(key) ? 0.8 : 0.6;
+            // Apply customized default volumes as requested
+            let defaultVol = DRUM_KEYS.includes(key) ? 0.8 : 0.6;
+            if (key === 'melody' || key === 'lead') {
+                defaultVol = 0.4; // Default 40%
+            } else if (key === 'chords') {
+                defaultVol = 0.9; // Default 90%
+            }
             window.wavSettings[key] = { volume: defaultVol, pan: 0.0 };
         }
     });
@@ -59,14 +84,19 @@
     let reverbWetGain = null;
     let limiterNode = null;
 
+    // Dedicated Effects Path Nodes for Melody & Lead
+    let melodyLeadInputNode = null;
+    let masterHPFNode = null;
+    let masterLPFNode = null;
+
     // Helper to map MIDI channels and notes to sample names
     function getSampleName(channel, note) {
         if (channel === 1) return 'bass';
         if (channel === 2) return 'chords';
         if (channel === 3) return 'arp';
-        if (channel === 4) return 'melody'; // Melody on Channel 4
+        if (channel === 4) return 'melody'; 
         if (channel === 5) return 'fills';
-        if (channel === 6) return 'lead';   // Lead Solo on Channel 6
+        if (channel === 6) return 'lead';   
         if (channel === 7) return 'mid-bass';
         if (channel === 10) return 'sub-bass';
         if (channel === 11) return 'sweep';
@@ -149,6 +179,73 @@
         return impulse;
     }
 
+    // Dynamic Stereo Chorus module for classic retro thickness and stereo widening
+    function createChorusEffect(ctx) {
+        const input = ctx.createGain();
+        const output = ctx.createGain();
+        
+        const dryGain = ctx.createGain();
+        dryGain.gain.setValueAtTime(0.55, ctx.currentTime);
+        
+        const wetGain = ctx.createGain();
+        wetGain.gain.setValueAtTime(0.50, ctx.currentTime);
+        
+        const delayNode = ctx.createDelay(0.1);
+        delayNode.delayTime.setValueAtTime(0.025, ctx.currentTime); // 25ms base delay
+        
+        const lfo = ctx.createOscillator();
+        lfo.frequency.setValueAtTime(1.6, ctx.currentTime); // LFO rate 1.6 Hz
+        
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.setValueAtTime(0.0035, ctx.currentTime); // 3.5ms modulation depth
+        
+        lfo.connect(lfoGain);
+        lfoGain.connect(delayNode.delayTime);
+        lfo.start();
+        
+        input.connect(dryGain);
+        dryGain.connect(output);
+        
+        input.connect(delayNode);
+        delayNode.connect(wetGain);
+        wetGain.connect(output);
+        
+        return { input, output };
+    }
+
+    // Dynamic Feedback Delay module with warm analog-style repeats
+    function createDelayEffect(ctx) {
+        const input = ctx.createGain();
+        const output = ctx.createGain();
+        
+        const delayNode = ctx.createDelay(1.0);
+        delayNode.delayTime.setValueAtTime(0.350, ctx.currentTime); // 350ms delay time
+        
+        const feedbackGain = ctx.createGain();
+        feedbackGain.gain.setValueAtTime(0.42, ctx.currentTime); // 42% feedback
+        
+        const filterNode = ctx.createBiquadFilter();
+        filterNode.type = 'lowpass';
+        filterNode.frequency.setValueAtTime(2200, ctx.currentTime); // Analog-style darker repeats
+        
+        input.connect(delayNode);
+        delayNode.connect(filterNode);
+        filterNode.connect(feedbackGain);
+        feedbackGain.connect(delayNode);
+        
+        const wetGain = ctx.createGain();
+        wetGain.gain.setValueAtTime(0.30, ctx.currentTime); // Delay wet mix level
+        filterNode.connect(wetGain);
+        wetGain.connect(output);
+        
+        const dryGain = ctx.createGain();
+        dryGain.gain.setValueAtTime(1.0, ctx.currentTime);
+        input.connect(dryGain);
+        dryGain.connect(output);
+        
+        return { input, output };
+    }
+
     // Initialize Web Audio API and load samples
     async function initAudioEngine() {
         if (audioCtx) return;
@@ -174,6 +271,15 @@
         reverbDryGain.gain.setValueAtTime(0.80, audioCtx.currentTime);
         reverbWetGain.gain.setValueAtTime(0.22, audioCtx.currentTime); 
 
+        // Master HPF & LPF Filter Setup
+        masterHPFNode = audioCtx.createBiquadFilter();
+        masterHPFNode.type = "highpass";
+        masterHPFNode.frequency.setValueAtTime(30, audioCtx.currentTime); // Cleans out master sub-mumble
+
+        masterLPFNode = audioCtx.createBiquadFilter();
+        masterLPFNode.type = "lowpass";
+        masterLPFNode.frequency.setValueAtTime(16000, audioCtx.currentTime); // Warm vintage roll-off
+
         limiterNode = audioCtx.createDynamicsCompressor();
         limiterNode.threshold.setValueAtTime(-1.0, audioCtx.currentTime);
         limiterNode.knee.setValueAtTime(0.0, audioCtx.currentTime);
@@ -181,7 +287,16 @@
         limiterNode.attack.setValueAtTime(0.001, audioCtx.currentTime);
         limiterNode.release.setValueAtTime(0.05, audioCtx.currentTime);
 
-        // 2. Connect the Signal Chain
+        // 2. Setup Dedicated Melody & Lead FX chain
+        melodyLeadInputNode = audioCtx.createGain();
+        const melodyLeadChorus = createChorusEffect(audioCtx);
+        const melodyLeadDelay = createDelayEffect(audioCtx);
+
+        melodyLeadInputNode.connect(melodyLeadChorus.input);
+        melodyLeadChorus.output.connect(melodyLeadDelay.input);
+        melodyLeadDelay.output.connect(masterPreGain);
+
+        // 3. Connect Master Signal Chain
         bassGainNode.connect(masterPreGain);
         masterPreGain.connect(saturationNode);
 
@@ -189,11 +304,15 @@
         saturationNode.connect(reverbNode);
         reverbNode.connect(reverbWetGain);
 
-        reverbDryGain.connect(limiterNode);
-        reverbWetGain.connect(limiterNode);
+        // Connect both dry and wet master lines to master HPF/LPF
+        reverbDryGain.connect(masterHPFNode);
+        reverbWetGain.connect(masterHPFNode);
+
+        masterHPFNode.connect(masterLPFNode);
+        masterLPFNode.connect(limiterNode);
         limiterNode.connect(audioCtx.destination);
 
-        // 3. Load Samples asynchronously
+        // 4. Load Samples asynchronously
         updateStatus("Loading WAV audio engine...");
         const promises = Object.keys(SAMPLE_FILES).map(async (key) => {
             audioBuffers[key] = [];
@@ -298,7 +417,7 @@
 
     /**
      * SamplerVoice: Versatile envelope-driven voice for all instruments.
-     * Supports real-time Pitch Bend, LFO Modulation Vibrato (CC 1), and Stereo Panning.
+     * Supports real-time Pitch Bend, LFO Modulation Vibrato (CC 1), Stereo Panning, and channel filters.
      */
     class SamplerVoice {
         constructor(ctx, buffer, midiNote, velocity, destNode, sampleKey, channel) {
@@ -321,12 +440,19 @@
             this.srcNode.buffer = buffer;
             this.srcNode.detune.setValueAtTime(this.baseDetune, ctx.currentTime);
 
-            // 2. Filter Node (Velocity sensitive)
-            this.filterNode = ctx.createBiquadFilter();
-            this.filterNode.type = "lowpass";
+            // 2. Channel-specific High-Pass and Low-Pass Filters in series
+            this.hpfNode = ctx.createBiquadFilter();
+            this.hpfNode.type = "highpass";
+            this.lpfNode = ctx.createBiquadFilter();
+            this.lpfNode.type = "lowpass";
+
+            const filterDefaults = CHANNEL_FILTERS[sampleKey] || { hpf: 20, lpf: 20000 };
+            this.hpfNode.frequency.setValueAtTime(filterDefaults.hpf, ctx.currentTime);
+
+            // Apply expressive velocity tracking to LPF cutoff
             const normVel = velocity / 127;
-            const cutoffFreq = 450 + (normVel * normVel) * 19550;
-            this.filterNode.frequency.setValueAtTime(cutoffFreq, ctx.currentTime);
+            const cutoffFreq = filterDefaults.lpf * (0.4 + 0.6 * normVel);
+            this.lpfNode.frequency.setValueAtTime(Math.min(20000, cutoffFreq), ctx.currentTime);
 
             // 3. Vibrato LFO Modulator (CC 1 Mod Wheel)
             this.lfo = ctx.createOscillator();
@@ -348,9 +474,10 @@
                 this.pannerNode.pan.setValueAtTime(initPan, ctx.currentTime);
             }
 
-            // Audio Routing
-            this.srcNode.connect(this.filterNode);
-            this.filterNode.connect(this.gainNode);
+            // Audio Routing: Source -> HPF -> LPF -> Volume -> Pan -> Destination
+            this.srcNode.connect(this.hpfNode);
+            this.hpfNode.connect(this.lpfNode);
+            this.lpfNode.connect(this.gainNode);
             
             if (this.pannerNode) {
                 this.gainNode.connect(this.pannerNode);
@@ -421,7 +548,8 @@
             if (idx > -1) activeVoices.splice(idx, 1);
 
             try { this.gainNode.disconnect(); } catch(e) {}
-            try { this.filterNode.disconnect(); } catch(e) {}
+            try { this.hpfNode.disconnect(); } catch(e) {}
+            try { this.lpfNode.disconnect(); } catch(e) {}
             try { this.lfoGain.disconnect(); } catch(e) {}
             try { if (this.pannerNode) this.pannerNode.disconnect(); } catch(e) {}
         }
@@ -441,10 +569,17 @@
         const normVel = velocity / 127;
         const userVol = window.wavSettings[sampleKey] ? window.wavSettings[sampleKey].volume : 0.8;
 
-        const filterNode = audioCtx.createBiquadFilter();
-        filterNode.type = "lowpass";
-        const cutoffFreq = 800 + (normVel * normVel) * 19200;
-        filterNode.frequency.setValueAtTime(cutoffFreq, audioCtx.currentTime);
+        // Drum-specific clean filter series
+        const hpfNode = audioCtx.createBiquadFilter();
+        hpfNode.type = "highpass";
+        const lpfNode = audioCtx.createBiquadFilter();
+        lpfNode.type = "lowpass";
+
+        const filterDefaults = CHANNEL_FILTERS[sampleKey] || { hpf: 20, lpf: 20000 };
+        hpfNode.frequency.setValueAtTime(filterDefaults.hpf, audioCtx.currentTime);
+
+        const cutoffFreq = filterDefaults.lpf * (0.6 + 0.4 * normVel);
+        lpfNode.frequency.setValueAtTime(Math.min(20000, cutoffFreq), audioCtx.currentTime);
 
         const gainNode = audioCtx.createGain();
         gainNode.gain.setValueAtTime(normVel * userVol, audioCtx.currentTime);
@@ -455,8 +590,10 @@
             pannerNode.pan.setValueAtTime(initPan, audioCtx.currentTime);
         }
 
-        srcNode.connect(filterNode);
-        filterNode.connect(gainNode);
+        // Routing: Source -> HPF -> LPF -> Volume -> Pan -> Destination
+        srcNode.connect(hpfNode);
+        hpfNode.connect(lpfNode);
+        lpfNode.connect(gainNode);
         
         if (pannerNode) {
             gainNode.connect(pannerNode);
@@ -471,7 +608,8 @@
         srcNode.onended = () => {
             decrementVoiceCount(sampleKey);
             try { gainNode.disconnect(); } catch(e) {}
-            try { filterNode.disconnect(); } catch(e) {}
+            try { hpfNode.disconnect(); } catch(e) {}
+            try { lpfNode.disconnect(); } catch(e) {}
             try { if (pannerNode) pannerNode.disconnect(); } catch(e) {}
         };
     }
@@ -502,8 +640,16 @@
             }
         });
 
+        // Determine destination routing
         const isBass = (channel === 1 || channel === 7 || channel === 10);
-        const targetOutput = isBass ? bassGainNode : masterPreGain;
+        let targetOutput = masterPreGain;
+
+        if (isBass) {
+            targetOutput = bassGainNode;
+        } else if (sampleKey === 'melody' || sampleKey === 'lead') {
+            // Routaa Melody ja Lead omaan Chorus + Delay FX väyläänsä
+            targetOutput = melodyLeadInputNode;
+        }
 
         if (channel === 9) {
             // One-shot drum hit
