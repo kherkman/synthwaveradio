@@ -65,11 +65,20 @@
         activeVoiceCounts[key] = 0;
         if (!window.wavSettings[key]) {
             // Apply customized default volumes as requested
-            let defaultVol = DRUM_KEYS.includes(key) ? 0.8 : 0.6;
-            if (key === 'melody' || key === 'lead') {
-                defaultVol = 0.6; // Default 60%
+            let defaultVol = 0.6; // Default value for general instruments
+            
+            if (key === 'closed-hat') {
+                defaultVol = 0.25; // Default 25%
+            } else if (key === 'open-hat') {
+                defaultVol = 0.3;  // Default 30%
+            } else if (key === 'bass' || key === 'mid-bass') {
+                defaultVol = 0.8;  // Default 80%
             } else if (key === 'chords') {
-                defaultVol = 0.9; // Default 90%
+                defaultVol = 0.9;  // Default 90%
+            } else if (key === 'melody' || key === 'lead') {
+                defaultVol = 0.6;  // Default 60%
+            } else if (DRUM_KEYS.includes(key)) {
+                defaultVol = 0.8;  // Other drums default 80%
             }
             window.wavSettings[key] = { volume: defaultVol, pan: 0.0 };
         }
@@ -386,7 +395,10 @@
     window.updateWavVolume = function(sampleKey, vol) {
         if (!window.wavSettings) window.wavSettings = {};
         if (!window.wavSettings[sampleKey]) {
-            const defaultVol = DRUM_KEYS.includes(sampleKey) ? 0.8 : 0.6;
+            let defaultVol = DRUM_KEYS.includes(sampleKey) ? 0.8 : 0.6;
+            if (sampleKey === 'closed-hat') defaultVol = 0.25;
+            else if (sampleKey === 'open-hat') defaultVol = 0.3;
+            else if (sampleKey === 'bass' || sampleKey === 'mid-bass') defaultVol = 0.8;
             window.wavSettings[sampleKey] = { volume: defaultVol, pan: 0.0 };
         }
         window.wavSettings[sampleKey].volume = parseFloat(vol);
@@ -404,7 +416,13 @@
 
     window.updateWavPan = function(sampleKey, pan) {
         if (!window.wavSettings) window.wavSettings = {};
-        if (!window.wavSettings[sampleKey]) window.wavSettings[sampleKey] = { volume: 0.8, pan: 0.0 };
+        if (!window.wavSettings[sampleKey]) {
+            let defaultVol = DRUM_KEYS.includes(sampleKey) ? 0.8 : 0.6;
+            if (sampleKey === 'closed-hat') defaultVol = 0.25;
+            else if (sampleKey === 'open-hat') defaultVol = 0.3;
+            else if (sampleKey === 'bass' || sampleKey === 'mid-bass') defaultVol = 0.8;
+            window.wavSettings[sampleKey] = { volume: defaultVol, pan: 0.0 };
+        }
         window.wavSettings[sampleKey].pan = parseFloat(pan);
 
         activeVoices.forEach(voice => {
@@ -451,7 +469,17 @@
 
             // Apply expressive velocity tracking to LPF cutoff
             const normVel = velocity / 127;
-            const cutoffFreq = filterDefaults.lpf * (0.4 + 0.6 * normVel);
+            let cutoffFreq = filterDefaults.lpf * (0.4 + 0.6 * normVel);
+
+            // Dampen high frequencies on high notes for melody and lead to avoid piercing tones
+            if (sampleKey === 'melody' || sampleKey === 'lead') {
+                if (midiNote > 69) { // Above A4
+                    const noteExcess = midiNote - 69;
+                    const dampeningFactor = Math.max(0.4, 1.0 - (noteExcess * 0.025)); 
+                    cutoffFreq *= dampeningFactor;
+                }
+            }
+
             this.lpfNode.frequency.setValueAtTime(Math.min(20000, cutoffFreq), ctx.currentTime);
 
             // 3. Vibrato LFO Modulator (CC 1 Mod Wheel)
@@ -496,7 +524,11 @@
             const now = this.ctx.currentTime;
             this.gainNode.gain.cancelScheduledValues(now);
             this.gainNode.gain.setValueAtTime(0.001, now); // Anchor gain level to prevent clicks/glitches
-            const defaultVol = DRUM_KEYS.includes(this.sampleKey) ? 0.8 : 0.6;
+            let defaultVol = DRUM_KEYS.includes(this.sampleKey) ? 0.8 : 0.6;
+            if (this.sampleKey === 'closed-hat') defaultVol = 0.25;
+            else if (this.sampleKey === 'open-hat') defaultVol = 0.3;
+            else if (this.sampleKey === 'bass' || this.sampleKey === 'mid-bass') defaultVol = 0.8;
+            
             const userVol = window.wavSettings[this.sampleKey] ? window.wavSettings[this.sampleKey].volume : defaultVol;
             this.gainNode.gain.linearRampToValueAtTime((this.velocity / 127) * userVol, now + 0.025); // 25ms attack
             this.srcNode.start(now);
@@ -567,7 +599,12 @@
         srcNode.playbackRate.value = Math.max(0.5, Math.min(2.0, playbackRate));
 
         const normVel = velocity / 127;
-        const userVol = window.wavSettings[sampleKey] ? window.wavSettings[sampleKey].volume : 0.8;
+        let defaultVol = DRUM_KEYS.includes(sampleKey) ? 0.8 : 0.6;
+        if (sampleKey === 'closed-hat') defaultVol = 0.25;
+        else if (sampleKey === 'open-hat') defaultVol = 0.3;
+        else if (sampleKey === 'bass' || sampleKey === 'mid-bass') defaultVol = 0.8;
+
+        const userVol = window.wavSettings[sampleKey] ? window.wavSettings[sampleKey].volume : defaultVol;
 
         // Drum-specific clean filter series
         const hpfNode = audioCtx.createBiquadFilter();
