@@ -67,9 +67,9 @@
             // Apply customized default volumes as requested
             let defaultVol = DRUM_KEYS.includes(key) ? 0.8 : 0.6;
             if (key === 'melody' || key === 'lead') {
-                defaultVol = 0.6; // Default 60%
+                defaultVol = 0.6; // Default 
             } else if (key === 'chords') {
-                defaultVol = 0.9; // Default 90%
+                defaultVol = 0.6; // Default 
             }
             window.wavSettings[key] = { volume: defaultVol, pan: 0.0 };
         }
