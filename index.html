@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SYNTHWAVE RADIO - NEON TRANSMISSION</title>
+    <title>SYNTHWAVE RADIO</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=VT323&display=swap');
         
@@ -142,6 +142,39 @@
             color: #fff;
             box-shadow: 0 0 15px var(--magenta);
             text-shadow: none;
+        }
+
+        /* Fullscreen Button */
+        #fullscreenBtn {
+            position: fixed;
+            top: 20px;
+            right: 155px;
+            z-index: 1000;
+            background: rgba(13, 12, 17, 0.85);
+            border: 2px solid var(--magenta);
+            color: var(--cyan);
+            text-shadow: 0 0 5px var(--cyan);
+            box-shadow: 0 0 10px rgba(255, 0, 170, 0.4);
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 11px;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 1.5px;
+        }
+
+        #fullscreenBtn:hover {
+            background: var(--magenta);
+            color: #fff;
+            box-shadow: 0 0 15px var(--magenta);
+            text-shadow: none;
+        }
+
+        /* Siirretään dynaamisesti luotava Audio-painike kauemmas, jotta se ei mene päällekkäin muiden kanssa */
+        #audioToggleBtn {
+            right: 320px !important;
         }
         
         /* ── 3D Radio Chassis ──────────────────────────────────────────── */
@@ -782,12 +815,12 @@
             padding: 0;
         }
 
-        /* Style HUD container */
+        /* Style HUD container - Poistettu tausta ja reunat */
         body.collapsed-mode .display-screen {
-            background: rgba(5, 0, 15, 0.75);
-            border: 2px solid var(--magenta);
-            box-shadow: 0 0 25px rgba(255, 0, 170, 0.5);
-            border-radius: 16px;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0;
             padding: 30px 20px;
         }
 
@@ -811,6 +844,66 @@
         body.collapsed-mode .spectrum {
             height: 55px;
         }
+
+        /* ── Mobiiliasettelu puhelinsivustoversiolle ────────────────────────── */
+        @media (max-width: 680px) {
+            body {
+                padding-top: 100px;
+            }
+            .radio-container {
+                display: flex;
+                flex-direction: column;
+                margin-top: 20px;
+                padding: 15px;
+            }
+            /* Nostetaan painikkeet LED-näytön yläpuolelle */
+            .controls {
+                order: 1;
+                margin-bottom: 20px;
+                width: 100%;
+                justify-content: center;
+            }
+            /* Järjestetään LED-näyttö ja kaiuttimet siististi päällekkäin */
+            .radio-dashboard {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto auto;
+                gap: 15px;
+                order: 2;
+                width: 100%;
+                margin-bottom: 20px;
+            }
+            .display-bevel {
+                grid-column: 1 / span 2;
+                grid-row: 1;
+                width: 100%;
+            }
+            /* Kaiuttimet LED-näytön alapuolelle vierekkäin */
+            .speaker-grille {
+                grid-row: 2;
+                justify-self: center;
+                width: 100px;
+                height: 100px;
+            }
+            .cassette-compartment {
+                order: 3;
+            }
+            .dials-row {
+                order: 4;
+            }
+            .midi-selector {
+                order: 5;
+            }
+            .wav-uploader-panel {
+                order: 6;
+            }
+            .info-panel {
+                order: 7;
+            }
+            .status {
+                order: 8;
+            }
+        }
     </style>
 </head>
 <body>
@@ -826,7 +919,8 @@
     <div class="subtitle">R E T R O &nbsp; F U T U R E</div>
 </div>
 
-<!-- Right-Corner Expand/Collapse Switcher -->
+<!-- Right-Corner Expand/Collapse Switcher & Full Screen -->
+<button id="fullscreenBtn" class="toggle-btn">[ FULLSCREEN ]</button>
 <button id="toggleRadioBtn" class="toggle-btn">[ COLLAPSE ]</button>
 
 <div class="radio-container">
@@ -1195,8 +1289,8 @@
     </div>
     
     <div class="info-panel">
-        <span>LEGATO SYNTHWAVE BROADCAST</span> • Portaaton asteikkoliike • Sidotut legatolinjat • Ei riitasointuja • Suodatinajot<br>
-        <span>Ch1 Bass</span> | <span>Ch2 Chords (Dream Voicing)</span> | <span>Ch3 Arpeggio (Swing)</span> | <span>Ch4 Melody Synth</span> | <span>Ch5 Consonant Runs</span> | <span>Ch6 Lead Solo</span> | <span>Ch7 Mid-Bass</span> | <span>Ch8 Kick SC</span> | <span>Ch9 Drums & Claps</span> | <span>Ch10 Sub-Bass</span> | <span>Ch11 Noise FX Sweep</span>
+        <span>SYNTHWAVE BROADCAST</span> • • • • <br>
+        <span>Ch1 Bass</span> | <span>Ch2 Chords</span> | <span>Ch3 Arpeggio</span> | <span>Ch4 Melody Synth</span> | <span>Ch5 Consonant Runs</span> | <span>Ch6 Lead Solo</span> | <span>Ch7 Mid-Bass</span> | <span>Ch8 Kick SC</span> | <span>Ch9 Drums & Claps</span> | <span>Ch10 Sub-Bass</span> | <span>Ch11 Noise FX Sweep</span>
     </div>
     
     <div class="status" id="status">⚡ SYNTHWAVE • READY TO BROADCAST ⚡</div>
@@ -1592,6 +1686,40 @@ requestAnimationFrame(frame);
                 toggleBtn.innerText = '[ COLLAPSE ]';
             }
         });
+
+        // Fullscreen Switcher logic
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.warn(`Error enabling full-screen: ${err.message}`);
+                });
+                fullscreenBtn.innerText = '[ EXIT FULL ]';
+            } else {
+                document.exitFullscreen();
+                fullscreenBtn.innerText = '[ FULLSCREEN ]';
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                fullscreenBtn.innerText = '[ EXIT FULL ]';
+            } else {
+                fullscreenBtn.innerText = '[ FULLSCREEN ]';
+            }
+        });
+
+        // Autoplay safe dynamic Audio On trigger on first user interaction (touch/click)
+        const autoEnableAudio = () => {
+            const audioBtn = document.getElementById('audioToggleBtn');
+            if (audioBtn && audioBtn.innerText === 'AUDIO: OFF') {
+                audioBtn.click();
+            }
+            window.removeEventListener('click', autoEnableAudio);
+            window.removeEventListener('touchstart', autoEnableAudio);
+        };
+        window.addEventListener('click', autoEnableAudio);
+        window.addEventListener('touchstart', autoEnableAudio);
     });
 </script>
 </body>
