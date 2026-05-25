@@ -276,7 +276,7 @@ function initSynthwaveRadio() {
     }
     
     // ========== MELODY GENERATOR WITH MOTIF REPETITION AND THIRDS/SIXTHS FOCUS ==========
-    function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType, melodyType = "random", melodyRhythmName = "driving") {
+    function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType, melodyType = "random", melodyRhythmName = "driving", doubleChordDuration = false) {
         const ticksPerBeat = 480;
         const events = [];
         if (sectionType === "intro" || sectionType === "bridge") return events;
@@ -305,10 +305,13 @@ function initSynthwaveRadio() {
         const allowedSteps = [1, -1, 2, -2, 3, -3, 0];  
 
         if (melodyType === "rythmic") {
-            const pattern = MELODY_RHYTHMS[melodyRhythmName] || MELODY_RHYTHMS["driving"];
             let currentScaleDegree = chordProg[0] || 0;
             
             for (let bar = 0; bar < phraseBars; bar++) {
+                // Valitaan jokaiselle tahdille oma satunnainen rytmikuvio neljästä 4 iskun melodiasta
+                const randomRhythmName = getRandomItem(Object.keys(MELODY_RHYTHMS));
+                const pattern = MELODY_RHYTHMS[randomRhythmName] || MELODY_RHYTHMS["driving"];
+                
                 const activeSteps = [];
                 for (let i = 0; i < pattern.length; i++) {
                     if (pattern[i] === 1) activeSteps.push(i);
@@ -316,8 +319,8 @@ function initSynthwaveRadio() {
                 
                 for (let i = 0; i < activeSteps.length; i++) {
 
-                    // Jätetään nuotti soittamatta 20 % todennäköisyydellä, mikä luo rytmiin tyhjän kohdan (tauon)
-                    if (Math.random() < 0.20) {
+                    // Jätetään nuotti soittamatta vain 5 % todennäköisyydellä (aiemmin 20 %)
+                    if (Math.random() < 0.05) {
                         continue;
                     }
 
@@ -390,8 +393,8 @@ function initSynthwaveRadio() {
                 const step = getRandomItem(allowedSteps);
                 currentScaleDegree += step;
 
-                // Korjattu relativeBeat-bugi käyttämään oikeaa 'beat'-muuttujaa:
-                const chordIdx = Math.floor(beat / 4) % chordProg.length;
+                // Korjattu relativeBeat-bugi käyttämään oikeaa 'beat'-muuttujaa ja huomioidaan chord kesto
+                const chordIdx = Math.floor(beat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
                 const currentChordRoot = chordProg[chordIdx];
                 currentScaleDegree = (currentChordRoot + (currentScaleDegree % 7)) % 7;
                 
@@ -441,7 +444,7 @@ function initSynthwaveRadio() {
     }
     
     // ========== DYNAMIC SOLO LEAD SYNTH WITH RUNS, PITCH BEND, CC1 VIBRATO & CC11 CRESCENDO (Ch6) ==========
-    function generateSolo(scaleInfo, chordProg, totalBars, startBeat) {
+    function generateSolo(scaleInfo, chordProg, totalBars, startBeat, doubleChordDuration = false) {
         const ticksPerBeat = 480;
         const events = [];
         const tonic = scaleInfo.tonic;
@@ -457,9 +460,10 @@ function initSynthwaveRadio() {
 
         let beat = 0;
         const maxBeats = totalBars * 4;
+        const divisor = doubleChordDuration ? 8 : 4;
 
         while (beat < maxBeats) {
-            const chordIdx = Math.floor(beat / 4) % chordProg.length;
+            const chordIdx = Math.floor(beat / divisor) % chordProg.length;
             const currentChordRoot = chordProg[chordIdx];
 
             const phraseType = getRandomItem(["long_bend", "fast_run", "rest"]);
@@ -753,7 +757,7 @@ function initSynthwaveRadio() {
     }
     
     // ========== DYNAMIC INTRO GENERATOR ==========
-    function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirst, bassMode, swingAmount = 0) {
+    function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirst, bassMode, swingAmount = 0, doubleChordDuration = false) {
         const events = [];
         let prevChordNotes = null;
         
@@ -777,7 +781,7 @@ function initSynthwaveRadio() {
             // Käydään läpi intron loppupuoliskon tahdit ja generoidaan dynaaminen sointukierto
             for (let b = 0; b < activeBars; b++) {
                 const barTick = activeStartTick + (b * 4 * ticksPerBeat);
-                const chordIdx = b % chordProg.length;
+                const chordIdx = Math.floor(b / (doubleChordDuration ? 2 : 1)) % chordProg.length;
                 const chordRoot = chordProg[chordIdx];
                 const chordNotes = getDreamyVoiceLedChord(scaleInfo, chordRoot, 4, prevChordNotes);
                 prevChordNotes = chordNotes;
@@ -822,7 +826,7 @@ function initSynthwaveRadio() {
             // Ei rumpujen esisoittoa: instrumentit ja dynaaminen sointukierto soivat koko intron ajan
             for (let b = 0; b < introStyle.bars; b++) {
                 const barTick = startTick + (b * 4 * ticksPerBeat);
-                const chordIdx = b % chordProg.length;
+                const chordIdx = Math.floor(b / (doubleChordDuration ? 2 : 1)) % chordProg.length;
                 const chordRoot = chordProg[chordIdx];
                 const chordNotes = getDreamyVoiceLedChord(scaleInfo, chordRoot, 4, prevChordNotes);
                 prevChordNotes = chordNotes;
@@ -975,6 +979,9 @@ function initSynthwaveRadio() {
         const songHasStop = Math.random() < 0.35; 
         const fadeOutChorus = Math.random() < 0.4; 
         const bassMode = Math.random() < 0.45 ? "split" : "classic"; 
+        
+        // 35 % todennäköisyys, että kappaleessa soinnut kestävät tuplapituuden (vaihtuvat 2 tahdin välein)
+        const doubleChordDuration = Math.random() < 0.35;
 
         // Swing/Shuffle-voimakkuus arpeggiota varten
         const swingAmount = getRandomItem([0, 0, 0.2, 0.33, 0.45]);
@@ -1109,7 +1116,7 @@ function initSynthwaveRadio() {
                 // VERSE: ensimmäinen generoidaan, loput käyttää samaa siirretyillä tikeillä
                 if (s.type === "verse") {
                     if (!savedVerseMelody) {
-                        savedVerseMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, s.type, melodyType, melodyRhythmName);
+                        savedVerseMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, s.type, melodyType, melodyRhythmName, doubleChordDuration);
                         savedVerseStartBeat = currentBeat;
                         sectionMelody = savedVerseMelody;
                     } else {
@@ -1125,7 +1132,7 @@ function initSynthwaveRadio() {
                 // CHORUS: ensimmäinen generoidaan, loput käyttää samaa siirretyillä tikeillä
                 else if (s.type === "chorus") {
                     if (!savedChorusMelody) {
-                        savedChorusMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName);
+                        savedChorusMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName, doubleChordDuration);
                         savedChorusStartBeat = currentBeat;
                         sectionMelody = savedChorusMelody;
                     } else {
@@ -1140,7 +1147,7 @@ function initSynthwaveRadio() {
                 
                 // MUUT TYYPIT
                 else {
-                    sectionMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName);
+                    sectionMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName, doubleChordDuration);
                 }
                 
                 allEvents.push(...sectionMelody);
@@ -1156,8 +1163,9 @@ function initSynthwaveRadio() {
 
             // ========== TAHDEITTÄINEN LOOPPI (SOINNUT, BASSO, ARPEGGIO) ==========
             for (let bar = 0; bar < s.bars; bar++) {
-                const chordIdx = (currentBeat / 4 + bar) % chordProg.length;
-                const nextChordIdx = (currentBeat / 4 + bar + 1) % chordProg.length;
+                // Huomioidaan chord progression kesto, jos tuplakesto on päällä (kesto 8 iskua / 2 tahtia per sointu)
+                const chordIdx = Math.floor((currentBeat / 4 + bar) / (doubleChordDuration ? 2 : 1)) % chordProg.length;
+                const nextChordIdx = Math.floor((currentBeat / 4 + bar + 1) / (doubleChordDuration ? 2 : 1)) % chordProg.length;
                 const chordRoot = chordProg[chordIdx];
                 const nextChordRoot = chordProg[nextChordIdx];
                 
@@ -1175,7 +1183,7 @@ function initSynthwaveRadio() {
                 // INTRO
                 if (s.isIntro) {
                     if (bar === 0) {
-                        const introEvents = generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirstIntro, bassMode, swingAmount);
+                        const introEvents = generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirstIntro, bassMode, swingAmount, doubleChordDuration);
                         allEvents.push(...introEvents);
                     }
                 }
@@ -1375,6 +1383,12 @@ function initSynthwaveRadio() {
                         if (songHasClap) {
                             allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 39, velocity: 80 * intensity, duration: ticksPerBeat / 2 });
                             allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 39, velocity: 80 * intensity, duration: ticksPerBeat / 2 });
+                            
+                            // Italo Disco -tyyliset kaksi peräkkäistä clap-iskua tahdin loppuun satunnaisesti 2. tai 4. tahdilla
+                            if ((bar % 4 === 1 || bar % 4 === 3) && Math.random() < 0.5) {
+                                allEvents.push({ tick: startTick + ticksPerBeat * 3.5, type: 'note', channel: 9, note: 39, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+                                allEvents.push({ tick: startTick + ticksPerBeat * 3.75, type: 'note', channel: 9, note: 39, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+                            }
                         }
                     } else if (isLastBarOfSection) {
                         const fillTick = startTick + (ticksPerBeat * 3);
@@ -1411,7 +1425,7 @@ function initSynthwaveRadio() {
             // ========== SOLO (CH6) BRIDGE / OUTRO -OSIOISSA ==========
             if (s.type === "bridge" || (s.type === "outro" && !fadeOutChorus)) {
                 if (s.type === "outro" || bridgeStyle === "space_sweep" || bridgeStyle === "tension_builder") {
-                    const soloEvents = generateSolo(scaleInfo, chordProg, s.bars, currentBeat);
+                    const soloEvents = generateSolo(scaleInfo, chordProg, s.bars, currentBeat, doubleChordDuration);
                     allEvents.push(...soloEvents);
                 }
             }
@@ -1481,6 +1495,7 @@ function initSynthwaveRadio() {
             bpm: tempo,
             swing: swingAmount,
             chords: chordNames.join(" | "),
+            doubleChordDuration: doubleChordDuration,
             bassPattern: defaultBassPatternName,
             introType: introStyle.name,
             bridgeStyle: bridgeStyle,
@@ -1811,7 +1826,8 @@ function initSynthwaveRadio() {
                 
                 const melodyLabel = currentSong.melodyType === "rythmic" ? `Rytmi: ${currentSong.melodyRhythm}` : "Motiivi (Terssi/Seksti)";
                 const swingLabel = currentSong.swing > 0 ? `Swing: ${Math.round(currentSong.swing * 100)}%` : "Straight";
-                document.getElementById('bpmDisplay').innerHTML = `BPM: ${currentSong.bpm} | Intro: ${currentSong.introType} | Melodia: ${melodyLabel} | ${swingLabel}`;
+                const chordLabel = currentSong.doubleChordDuration ? "Soinnut: 2x kesto" : "Soinnut: Normaali";
+                document.getElementById('bpmDisplay').innerHTML = `BPM: ${currentSong.bpm} | Intro: ${currentSong.introType} | Melodia: ${melodyLabel} | ${swingLabel} | ${chordLabel}`;
                 
                 document.getElementById('chordsDisplay').innerHTML = currentSong.chords;
                 document.getElementById('sectionDisplay').innerText = "INTRO";
