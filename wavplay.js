@@ -64,12 +64,16 @@
     Object.keys(SAMPLE_FILES).forEach(key => {
         activeVoiceCounts[key] = 0;
         if (!window.wavSettings[key]) {
-            // Apply customized default volumes as requested
-            let defaultVol = DRUM_KEYS.includes(key) ? 0.8 : 0.6;
-            if (key === 'melody' || key === 'lead') {
-                defaultVol = 0.9; // Default 
+            // Päivitetyt voimakkuudet toiveiden mukaan
+            let defaultVol = 0.6;
+            if (DRUM_KEYS.includes(key)) {
+                defaultVol = 0.8; // Rumpujen default voluumi 80%
             } else if (key === 'chords') {
-                defaultVol = 0.6; // Default 
+                defaultVol = 0.8; // Sointujen default voluumi 80%
+            } else if (key === 'lead') {
+                defaultVol = 0.6; // Lead-soittimen default voluumi 60%
+            } else if (key === 'melody') {
+                defaultVol = 0.9;
             }
             window.wavSettings[key] = { volume: defaultVol, pan: 0.0 };
         }
@@ -84,10 +88,12 @@
     let reverbWetGain = null;
     let limiterNode = null;
 
-    // Dedicated Effects Path Nodes for Melody & Lead
+    // Dedicated Effects Path Nodes
     let melodyLeadInputNode = null;
+    let chordsInputNode = null;
     let masterHPFNode = null;
     let masterLPFNode = null;
+    let masterDynamicEQ = null;
 
     // Helper to map MIDI channels and notes to sample names
     function getSampleName(channel, note) {
@@ -179,6 +185,27 @@
         return impulse;
     }
 
+    // Haas-efektiin perustuva stereolevennin sointujen leventämiseksi
+    function createStereoWidener(ctx, delayTime) {
+        const input = ctx.createGain();
+        const splitter = ctx.createChannelSplitter(2);
+        const merger = ctx.createChannelMerger(2);
+        const delayL = ctx.createDelay();
+        const delayR = ctx.createDelay();
+        
+        delayL.delayTime.setValueAtTime(0.0, ctx.currentTime);
+        delayR.delayTime.setValueAtTime(delayTime, ctx.currentTime); // Pieni viive oikeaan kanavaan leveyden saamiseksi
+        
+        input.connect(splitter);
+        splitter.connect(delayL, 0);
+        splitter.connect(delayR, 1);
+        
+        delayL.connect(merger, 0, 0);
+        delayR.connect(merger, 0, 1);
+        
+        return { input, output: merger };
+    }
+
     // Dynamic Stereo Chorus module for classic retro thickness and stereo widening
     function createChorusEffect(ctx) {
         const input = ctx.createGain();
@@ -246,6 +273,69 @@
         return { input, output };
     }
 
+    // 3-alueinen dynaaminen EQ master-muokkaukseen
+    function create3BandDynamicEQ(ctx) {
+        const input = ctx.createGain();
+        const output = ctx.createGain();
+        
+        // --- Low Band (0Hz - 220Hz) ---
+        const lowFilter = ctx.createBiquadFilter();
+        lowFilter.type = 'lowpass';
+        lowFilter.frequency.setValueAtTime(220, ctx.currentTime);
+        lowFilter.Q.setValueAtTime(0.7, ctx.currentTime);
+        
+        const lowComp = ctx.createDynamicsCompressor();
+        lowComp.threshold.setValueAtTime(-14, ctx.currentTime); // Tiukka matalien tasoitus
+        lowComp.knee.setValueAtTime(6.0, ctx.currentTime);
+        lowComp.ratio.setValueAtTime(3.0, ctx.currentTime);
+        lowComp.attack.setValueAtTime(0.015, ctx.currentTime); // Antaa iskun kulkea, mutta tasoittaa muminat
+        lowComp.release.setValueAtTime(0.12, ctx.currentTime);
+        
+        // --- Mid Band (220Hz - 3800Hz) ---
+        const midLPF = ctx.createBiquadFilter();
+        midLPF.type = 'lowpass';
+        midLPF.frequency.setValueAtTime(3800, ctx.currentTime);
+        
+        const midHPF = ctx.createBiquadFilter();
+        midHPF.type = 'highpass';
+        midHPF.frequency.setValueAtTime(220, ctx.currentTime);
+        
+        const midComp = ctx.createDynamicsCompressor();
+        midComp.threshold.setValueAtTime(-18, ctx.currentTime); // Kontrolloi sointumattojen ja melodioiden purskeita
+        midComp.knee.setValueAtTime(10.0, ctx.currentTime);
+        midComp.ratio.setValueAtTime(2.0, ctx.currentTime);
+        midComp.attack.setValueAtTime(0.025, ctx.currentTime);
+        midComp.release.setValueAtTime(0.18, ctx.currentTime);
+        
+        // --- High Band (3800Hz+) ---
+        const highFilter = ctx.createBiquadFilter();
+        highFilter.type = 'highpass';
+        highFilter.frequency.setValueAtTime(3800, ctx.currentTime);
+        
+        const highComp = ctx.createDynamicsCompressor();
+        highComp.threshold.setValueAtTime(-16, ctx.currentTime); // De-essaa kohinat ja pellit siistiksi
+        highComp.knee.setValueAtTime(8.0, ctx.currentTime);
+        highComp.ratio.setValueAtTime(2.5, ctx.currentTime);
+        highComp.attack.setValueAtTime(0.010, ctx.currentTime);
+        highComp.release.setValueAtTime(0.15, ctx.currentTime);
+        
+        // Reititykset rinnakkain
+        input.connect(lowFilter);
+        lowFilter.connect(lowComp);
+        lowComp.connect(output);
+        
+        input.connect(midLPF);
+        midLPF.connect(midHPF);
+        midHPF.connect(midComp);
+        midComp.connect(output);
+        
+        input.connect(highFilter);
+        highFilter.connect(highComp);
+        highComp.connect(output);
+        
+        return { input, output };
+    }
+
     // Initialize Web Audio API and load samples
     async function initAudioEngine() {
         if (audioCtx) return;
@@ -280,6 +370,9 @@
         masterLPFNode.type = "lowpass";
         masterLPFNode.frequency.setValueAtTime(16000, audioCtx.currentTime); // Warm vintage roll-off
 
+        // Master Dynamic EQ alustus
+        masterDynamicEQ = create3BandDynamicEQ(audioCtx);
+
         limiterNode = audioCtx.createDynamicsCompressor();
         limiterNode.threshold.setValueAtTime(-1.0, audioCtx.currentTime);
         limiterNode.knee.setValueAtTime(0.0, audioCtx.currentTime);
@@ -296,6 +389,12 @@
         melodyLeadChorus.output.connect(melodyLeadDelay.input);
         melodyLeadDelay.output.connect(masterPreGain);
 
+        // Setup Dedicated Chords FX path with Stereo Widener
+        chordsInputNode = audioCtx.createGain();
+        const chordsWidener = createStereoWidener(audioCtx, 0.022); // 22ms Haas-viive soinnuille
+        chordsInputNode.connect(chordsWidener.input);
+        chordsWidener.output.connect(masterPreGain);
+
         // 3. Connect Master Signal Chain
         bassGainNode.connect(masterPreGain);
         masterPreGain.connect(saturationNode);
@@ -309,7 +408,8 @@
         reverbWetGain.connect(masterHPFNode);
 
         masterHPFNode.connect(masterLPFNode);
-        masterLPFNode.connect(limiterNode);
+        masterLPFNode.connect(masterDynamicEQ.input); // Dynaaminen EQ suodattimien jälkeen
+        masterDynamicEQ.output.connect(limiterNode); // Dynaamisen EQ:n ulostulo limitteriin
         limiterNode.connect(audioCtx.destination);
 
         // 4. Load Samples asynchronously
@@ -386,7 +486,9 @@
     window.updateWavVolume = function(sampleKey, vol) {
         if (!window.wavSettings) window.wavSettings = {};
         if (!window.wavSettings[sampleKey]) {
-            const defaultVol = DRUM_KEYS.includes(sampleKey) ? 0.8 : 0.6;
+            let defaultVol = DRUM_KEYS.includes(sampleKey) ? 0.8 : 0.6;
+            if (sampleKey === 'chords') defaultVol = 0.8;
+            if (sampleKey === 'lead') defaultVol = 0.6;
             window.wavSettings[sampleKey] = { volume: defaultVol, pan: 0.0 };
         }
         window.wavSettings[sampleKey].volume = parseFloat(vol);
@@ -496,7 +598,9 @@
             const now = this.ctx.currentTime;
             this.gainNode.gain.cancelScheduledValues(now);
             this.gainNode.gain.setValueAtTime(0.001, now); // Anchor gain level to prevent clicks/glitches
-            const defaultVol = DRUM_KEYS.includes(this.sampleKey) ? 0.8 : 0.6;
+            let defaultVol = DRUM_KEYS.includes(this.sampleKey) ? 0.8 : 0.6;
+            if (this.sampleKey === 'chords') defaultVol = 0.8;
+            if (this.sampleKey === 'lead') defaultVol = 0.6;
             const userVol = window.wavSettings[this.sampleKey] ? window.wavSettings[this.sampleKey].volume : defaultVol;
             this.gainNode.gain.linearRampToValueAtTime((this.velocity / 127) * userVol, now + 0.025); // 25ms attack
             this.srcNode.start(now);
@@ -517,8 +621,12 @@
         }
 
         setVibratoDepth(ccValue) {
-            // Map Mod Wheel 0..127 to 0..45 cents of pitch vibrato modulation depth
-            const depthCents = (ccValue / 127) * 45;
+            // Sointujen vibratoa rajoitetaan huomattavasti pehmeämmän ja vakaamman lopputuloksen saavuttamiseksi
+            let maxCents = 45;
+            if (this.sampleKey === 'chords') {
+                maxCents = 10;
+            }
+            const depthCents = (ccValue / 127) * maxCents;
             const now = this.ctx.currentTime;
             this.lfoGain.gain.setTargetAtTime(depthCents, now, 0.035);
         }
@@ -647,8 +755,9 @@
         if (isBass) {
             targetOutput = bassGainNode;
         } else if (sampleKey === 'melody' || sampleKey === 'lead') {
-            // Routaa Melody ja Lead omaan Chorus + Delay FX väyläänsä
             targetOutput = melodyLeadInputNode;
+        } else if (sampleKey === 'chords') {
+            targetOutput = chordsInputNode; // Ohjataan leveään Haas-stereokanavaan
         }
 
         if (channel === 9) {
