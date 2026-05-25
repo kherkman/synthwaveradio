@@ -2,7 +2,7 @@ function initSynthwaveRadio() {
     const ADJECTIVES = ["NIGHT", "NEON", "LASER", "MEMORY", "SYNTH", "DARK", "FUTURE", "DREAM", 
     "ELECTRIC", "SHADOW", "COSMIC", "RADIO", "VELVET", "CRYSTAL", 
     "PHANTOM", "ARCADE", "MIDNIGHT", "SOLAR", "STELLAR", "CYBER", 
-    "MIDNIGHT", "BLAZING", "DISTANT", "GHOSTLY", "LIQUID", "MIRAGE", 
+    "MIDNIGHT", "BLAZING", "DISTANT", "GHOSTLY", "LIQUID", "MIRAGE", "FM", "VINYL",
     "NEBULA", "OUTRUN", "RADIO", "SILENT", "THUNDER", "URBAN", "VOID", "WILD", "ZERO", 
     "ANALOG", "DIGITAL", "FROZEN", "HOT", "INFINITE", "JET", "KILLER", "LOST", "LUNAR", "MACHINE", 
     "MYSTIC", "NEON", "PHOENIX", "QUANTUM", "RETRO", "SHADOW", "TITAN", "ULTRA", "VINTAGE", "WAVE", "BACK TO THE", 
@@ -11,8 +11,8 @@ function initSynthwaveRadio() {
 
     const NOUNS = [ "DRIVE", "WAVE", "GRID", "CITY", "RUN", "HEART", "VOID", "SKY", "DREAMS", 
     "STORM", "PARADISE", "ROADS", "MINDS", "FIRE", "SOUL", "GHOST", "TURBO", 
-    "VISION", "ECHO", "SHORE", "BLASTER", "CRUISER", "DANCER", "EMPIRE", "FIGHTER", "GUNNER", "HORIZON",
-    "JOURNEY", "KILLER", "LASER", "MOTION", "NIGHTMARE", "ORBIT", "PULSE",
+    "VISION", "ECHO", "SHORE", "BLASTER", "CRUISER", "DANCER", "EMPIRE", "FIGHTER", "GUNNER", "RUNNER", "HORIZON",
+    "JOURNEY", "KILLER", "LASER", "MOTION", "NIGHTMARE", "ORBIT", "PULSE", "CASSETTE",
     "QUEST", "RACER", "SPECTRE", "THRUST", "UNIVERSE", "VIPER", "WARRIOR",
     "XENON", "YOUTH", "ZONE", "ADVENTURE", "BLADE", "COSMOS", "DYNAMO", "ENERGY", 
     "FALCON", "GALAXY", "HUNTER", "INFERNO", "JUNGLE", "KINGDOM", "LEGEND", 
@@ -202,7 +202,6 @@ function initSynthwaveRadio() {
         };
     }
 
-    // Valitse tiettyjen kuvioiden välillä (esim. vain kaksi haluamaasi)
     function getSpecificKickPatterns() {
         const myPatterns = [
             { name: "sparse_quarter", pattern: [1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0] },
@@ -224,9 +223,6 @@ function initSynthwaveRadio() {
         ];
     }
 
-    /**
-     * UNELMOIVAT SOINTUVOICINGIT
-     */
     function getDreamyVoiceLedChord(scaleInfo, chordRootOffset, targetOctave, prevChordNotes) {
         const scale = scaleInfo.scale;
         const tonic = scaleInfo.tonic;
@@ -235,7 +231,6 @@ function initSynthwaveRadio() {
         const tIdx = (rIdx + 2) % 7;
         const fIdx = (rIdx + 4) % 7;
         
-        // VAIN KOLMISOINTU: perussävel, terssi, kvintti
         const rPitch = (tonic + scale[rIdx]) % 12;
         const tPitch = (tonic + scale[tIdx]) % 12;
         const fPitch = (tonic + scale[fIdx]) % 12;
@@ -295,20 +290,17 @@ function initSynthwaveRadio() {
             return tonic + scaleOffsets[normalizedIndex] + (oct + octaveOffset) * 12;
         }
 
-        // Luodaan 4 tahdin fraasi (motiivi) ja toistetaan sitä toistuvan rakenteen luomiseksi
         const phraseBars = 4;
         const numPhrases = Math.ceil(totalBars / phraseBars);
         const phraseEvents = [];
         const stepDurationBeats = 0.5;
 
-        // Intervallit: terssit (+2/-2) ja kvintit (+4/-4), kvartit (+3/-3)
         const allowedSteps = [1, -1, 2, -2, 3, -3, 0];  
 
         if (melodyType === "rythmic") {
             let currentScaleDegree = chordProg[0] || 0;
             
             for (let bar = 0; bar < phraseBars; bar++) {
-                // Valitaan jokaiselle tahdille oma satunnainen rytmikuvio neljästä 4 iskun melodiasta
                 const randomRhythmName = getRandomItem(Object.keys(MELODY_RHYTHMS));
                 const pattern = MELODY_RHYTHMS[randomRhythmName] || MELODY_RHYTHMS["driving"];
                 
@@ -319,7 +311,6 @@ function initSynthwaveRadio() {
                 
                 for (let i = 0; i < activeSteps.length; i++) {
 
-                    // Jätetään nuotti soittamatta vain 5 % todennäköisyydellä (aiemmin 20 %)
                     if (Math.random() < 0.05) {
                         continue;
                     }
@@ -336,21 +327,18 @@ function initSynthwaveRadio() {
                     if (currentScaleDegree < 0) currentScaleDegree += 7;
                     if (currentScaleDegree > 14) currentScaleDegree -= 7;
                     
-                    // Synthwave-tyylinen oktaavivalinta: kertosäkeessä oktaavi 4, säkeistössä oktaavi 3-4
-                    let baseOctave = 4; // Oletus oktaavi 4 (keskialue)
+                    let baseOctave = 4;
                     if (sectionType === "chorus" || sectionType === "chorus2") {
-                        baseOctave = 4; // Kertosäkeessä pysytään oktaavilla 4 (ei liian korkealla)
+                        baseOctave = 4;
                     } else if (sectionType === "verse" || sectionType === "verse2") {
-                        baseOctave = Math.random() < 0.6 ? 4 : 3; // 60% oktaavi 4, 40% oktaavi 3
+                        baseOctave = Math.random() < 0.6 ? 4 : 3;
                     }
                     
                     let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
 
-                    // Jos sävel ylittää ylärajan, madalletaan sitä oktaavi (12 sävelaskelta) kerrallaan
                     while (midiNote > 83) {
                         midiNote -= 12;
                     }
-                    // Vastaavasti jos se alittaa alarajan, nostetaan sitä oktaavi kerrallaan
                     while (midiNote < 36) {
                         midiNote += 12;
                     }
@@ -369,23 +357,19 @@ function initSynthwaveRadio() {
                 }
             }
         } else {
-            // Vapaampi motiivi, suosii edelleen samoja intervalleja (terssejä ja sekstejä)
             let currentScaleDegree = chordProg[0] || 0;
             let beat = 0;
             const maxBeats = phraseBars * 4; 
             
             while (beat < maxBeats) {
-                // 1. PIDEMMÄT NUOTIT: Lisätty 4.0 ja 6.0 iskun pituudet valikoimaan
                 let duration = getRandomItem([1.0, 1.5, 2.0, 3.0, 4.0, 6.0]);
                 if (beat + duration > maxBeats) {
                     duration = maxBeats - beat;
                 }
                 
-                // 2. TAUKO: 25 % todennäköisyys, että nuotin sijaan pidetäänkin tauko
                 const isRest = Math.random() < 0.25;
                 
                 if (isRest) {
-                    // Siirretään aikajanaa eteenpäin ilman, että luodaan nuottia
                     beat += duration;
                     continue;
                 }
@@ -393,7 +377,6 @@ function initSynthwaveRadio() {
                 const step = getRandomItem(allowedSteps);
                 currentScaleDegree += step;
 
-                // Korjattu relativeBeat-bugi käyttämään oikeaa 'beat'-muuttujaa ja huomioidaan chord kesto
                 const chordIdx = Math.floor(beat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
                 const currentChordRoot = chordProg[chordIdx];
                 currentScaleDegree = (currentChordRoot + (currentScaleDegree % 7)) % 7;
@@ -401,7 +384,6 @@ function initSynthwaveRadio() {
                 const baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
                 let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
                 
-                // Oktaavikorjaus (leikkauksen sijaan)
                 while (midiNote > 83) midiNote -= 12;
                 while (midiNote < 36) midiNote += 12;
                 
@@ -419,7 +401,6 @@ function initSynthwaveRadio() {
             }
         }
         
-        // Kopioidaan luotu fraasi motiivin tavoin toistetusti koko section pituudelle
         for (let p = 0; p < numPhrases; p++) {
             const phraseStartBeat = startBeat + (p * phraseBars * 4);
             phraseEvents.forEach(pe => {
@@ -431,7 +412,7 @@ function initSynthwaveRadio() {
                     events.push({
                         tick,
                         type: 'note',
-                        channel: 4, // Melody Synth (Plays melody.wav now!)
+                        channel: 4, 
                         note: pe.note,
                         velocity: pe.velocity,
                         duration: durationTicks
@@ -462,20 +443,24 @@ function initSynthwaveRadio() {
         const maxBeats = totalBars * 4;
         const divisor = doubleChordDuration ? 8 : 4;
 
+        // Muuttuja toistuvaa soolomotiivia varten kaaren luomiseksi
+        let motifNotes = null;
+
         while (beat < maxBeats) {
             const chordIdx = Math.floor(beat / divisor) % chordProg.length;
             const currentChordRoot = chordProg[chordIdx];
 
-            const phraseType = getRandomItem(["long_bend", "fast_run", "rest"]);
+            // Monipuolisemmat soolotyypit paremman melodian ja rakenteen varmistamiseksi
+            const phraseType = getRandomItem(["lyrical_theme", "motif_sequence", "expressive_bend", "melodic_run", "rest"]);
 
-            if (phraseType === "long_bend") {
+            if (phraseType === "expressive_bend") {
                 const durationBeats = getRandomItem([2.0, 3.0]);
                 if (beat + durationBeats > maxBeats) break;
 
                 const tick = (startBeat + beat) * ticksPerBeat;
                 const durationTicks = durationBeats * ticksPerBeat - 10;
 
-                const degree = getRandomItem([0, 2, 4, 6, 7]);
+                const degree = getRandomItem([0, 2, 4]); // Painotetaan soinnun ydinääniä
                 const note = getMidi(currentChordRoot + degree, 5); 
 
                 let targetNote = note; 
@@ -490,68 +475,162 @@ function initSynthwaveRadio() {
                 events.push({
                     tick,
                     type: 'note',
-                    channel: 6, // Lead Solo (Plays lead.wav now!)
+                    channel: 6, 
                     note: cappedNote,
-                    velocity: 95,
+                    velocity: 98,
                     duration: durationTicks
                 });
 
-                // Perinteinen Pitch bend (Vaikuttaa lead.wav soittoon!)
+                // Ilmeikkäämpi vireliukuma (pehmeä bend ylös ja palautus alas)
                 events.push({ tick: tick, type: 'pitch', channel: 6, value: 8192 });
-                events.push({ tick: tick + durationTicks * 0.15, type: 'pitch', channel: 6, value: 8192 });
-                events.push({ tick: tick + durationTicks * 0.45, type: 'pitch', channel: 6, value: 9500 });
-                events.push({ tick: tick + durationTicks * 0.75, type: 'pitch', channel: 6, value: 8192 });
+                events.push({ tick: tick + durationTicks * 0.1, type: 'pitch', channel: 6, value: 8192 });
+                events.push({ tick: tick + durationTicks * 0.35, type: 'pitch', channel: 6, value: 10200 }); // Bend ylös (+1.5 puolisävelaskelta)
+                events.push({ tick: tick + durationTicks * 0.65, type: 'pitch', channel: 6, value: 9200 });  // Laskee takaisin päin
+                events.push({ tick: tick + durationTicks * 0.85, type: 'pitch', channel: 6, value: 8192 });  // Tasautuu
                 events.push({ tick: tick + durationTicks - 5, type: 'pitch', channel: 6, value: 8192 }); 
 
-                // CC1 Vibrato modulaatiopyörällä soolon loppupuoliskolla
+                // CC1 Vibrato - kasvaa dynaamisesti ja poistuu ennen seuraavaa nuottia napsahdusten estämiseksi
                 events.push({ tick: tick, type: 'cc', channel: 6, controller: 1, value: 0 });
-                events.push({ tick: tick + durationTicks * 0.5, type: 'cc', channel: 6, controller: 1, value: 0 });
-                events.push({ tick: tick + durationTicks * 0.7, type: 'cc', channel: 6, controller: 1, value: 35 });
-                events.push({ tick: tick + durationTicks * 0.85, type: 'cc', channel: 6, controller: 1, value: 90 });
+                events.push({ tick: tick + durationTicks * 0.4, type: 'cc', channel: 6, controller: 1, value: 15 });
+                events.push({ tick: tick + durationTicks * 0.6, type: 'cc', channel: 6, controller: 1, value: 45 });
+                events.push({ tick: tick + durationTicks * 0.8, type: 'cc', channel: 6, controller: 1, value: 85 });
                 events.push({ tick: tick + durationTicks - 5, type: 'cc', channel: 6, controller: 1, value: 0 });
 
-                // CC11 Crescendo -efekti dynaamisesti soolon aikana (aloitetaan tasolta 40, kasvaa arvoon 127)
-                const steps = 8;
+                // CC11 Voimakkuuden crescendo/ilmeikkyys
+                const steps = 6;
                 for (let s = 0; s <= steps; s++) {
                     const stepTick = tick + Math.floor((s / steps) * durationTicks * 0.85);
-                    const crescVal = 40 + Math.floor((s / steps) * 87);
+                    const crescVal = 50 + Math.floor((s / steps) * 77);
                     events.push({ tick: stepTick, type: 'cc', channel: 6, controller: 11, value: crescVal });
                 }
                 events.push({ tick: tick + durationTicks - 5, type: 'cc', channel: 6, controller: 11, value: 127 });
 
                 beat += durationBeats;
 
-            } else if (phraseType === "fast_run") {
+            } else if (phraseType === "lyrical_theme") {
+                // Synkopoitu ja lyyrisempi 80-luvun tyylinen laulava kuvio (4 iskua)
+                const durationBeats = 4.0;
+                if (beat + durationBeats > maxBeats) break;
+
+                const startTick = (startBeat + beat) * ticksPerBeat;
+                const degrees = [0, 1, 2, 4]; // Perussävel, sekunti, terssi ja kvintti
+                const rhythmPatterns = [
+                    [1.0, 1.0, 1.0, 1.0],
+                    [1.5, 0.5, 1.0, 1.0],
+                    [0.75, 0.75, 1.5, 1.0],
+                    [1.0, 0.5, 0.5, 2.0]
+                ];
+                const rhythm = getRandomItem(rhythmPatterns);
+                
+                let currentTick = startTick;
+                for (let i = 0; i < 4; i++) {
+                    const note = getMidi(currentChordRoot + degrees[i], 5);
+                    let targetNote = note;
+                    while (targetNote > 83) targetNote -= 12;
+                    while (targetNote < 36) targetNote += 12;
+
+                    const noteDurTicks = rhythm[i] * ticksPerBeat - 10;
+                    events.push({
+                        tick: currentTick,
+                        type: 'note',
+                        channel: 6,
+                        note: targetNote,
+                        velocity: 90 + getRandomInt(-4, 4),
+                        duration: noteDurTicks
+                    });
+                    
+                    // Vibratolisäys loppunuotille
+                    if (i === 3) {
+                        events.push({ tick: currentTick, type: 'cc', channel: 6, controller: 1, value: 10 });
+                        events.push({ tick: currentTick + noteDurTicks * 0.4, type: 'cc', channel: 6, controller: 1, value: 65 });
+                        events.push({ tick: currentTick + noteDurTicks - 5, type: 'cc', channel: 6, controller: 1, value: 0 });
+                    }
+                    
+                    currentTick += rhythm[i] * ticksPerBeat;
+                }
+                beat += durationBeats;
+
+            } else if (phraseType === "motif_sequence") {
+                // Toistuva synthpop-melodiakuvio, joka transponoituu hieman dynaamisen kaaren luomiseksi
+                const durationBeats = 4.0;
+                if (beat + durationBeats > maxBeats) break;
+
+                const startTick = (startBeat + beat) * ticksPerBeat;
+                
+                if (!motifNotes) {
+                    motifNotes = [
+                        getRandomItem([0, 2, 4]),
+                        getRandomItem([1, 3, 5]),
+                        getRandomItem([2, 4, 6])
+                    ];
+                }
+                
+                const rhythm = [0.5, 0.5, 1.0]; // Kesto: 8-osa, 8-osa, 4-osa (toistuu kahdesti)
+                let currentTick = startTick;
+                
+                for (let repeat = 0; repeat < 2; repeat++) {
+                    for (let i = 0; i < 3; i++) {
+                        const note = getMidi(currentChordRoot + motifNotes[i] + (repeat * 2), 5); // Toinen kierros siirtyy hieman ylemmäs
+                        let targetNote = note;
+                        while (targetNote > 83) targetNote -= 12;
+                        while (targetNote < 36) targetNote += 12;
+
+                        events.push({
+                            tick: currentTick,
+                            type: 'note',
+                            channel: 6,
+                            note: targetNote,
+                            velocity: 88,
+                            duration: (rhythm[i] * ticksPerBeat) - 10
+                        });
+                        currentTick += rhythm[i] * ticksPerBeat;
+                    }
+                }
+                
+                beat += durationBeats;
+
+            } else if (phraseType === "melodic_run") {
+                // Parannettu "fast_run"-korvaaja: Melodiset kuviot ja pentatoniset nousut mekaanisen juoksun sijaan
                 const runBeats = 2.0;
                 if (beat + runBeats > maxBeats) break;
 
                 const startTick = (startBeat + beat) * ticksPerBeat;
-                const direction = getRandomItem(["up", "down"]);
                 
+                const patternType = getRandomItem(["pentatonic_up", "wave_contour", "triad_skip"]);
+                let scaleDegrees = [0, 1, 2, 4, 5, 6, 7, 9];
+                
+                if (patternType === "pentatonic_up") {
+                    scaleDegrees = [0, 2, 4, 7, 9, 11, 12, 14]; // Melodinen ja kaunis nousu
+                } else if (patternType === "wave_contour") {
+                    scaleDegrees = [0, 2, 4, 2, 4, 7, 5, 4];   // Aaltoileva täytekuvio
+                } else if (patternType === "triad_skip") {
+                    scaleDegrees = [0, 4, 2, 6, 4, 7, 9, 7];   // Hypähtelevä intervalleja suosiva kuvio
+                }
+
                 for (let i = 0; i < 8; i++) {
                     const stepTick = startTick + (i * ticksPerBeat / 4);
-                    const degreeOffset = direction === "up" ? i : (7 - i);
-                    const note = getMidi(currentChordRoot + degreeOffset, 5);
+                    const note = getMidi(currentChordRoot + scaleDegrees[i], 5);
 
                     let targetNote = note; 
-                    while (targetNote > 83) {
-                        targetNote -= 12;
-                    }
-                    while (targetNote < 36) {
-                        targetNote += 12;
-                    }
-                    const cappedNote = targetNote;
+                    while (targetNote > 83) targetNote -= 12;
+                    while (targetNote < 36) targetNote += 12;
+
+                    // Elävöitetään iskujen painotusta ja velocity-vaihtelua
+                    const velocity = (i % 4 === 0) ? 92 : 78;
 
                     events.push({
                         tick: stepTick,
                         type: 'note',
-                        channel: 6, // Lead Solo (Plays lead.wav now!)
-                        note: cappedNote,
-                        velocity: 82,
-                        duration: (ticksPerBeat / 4) - 5
+                        channel: 6, 
+                        note: targetNote,
+                        velocity: velocity + getRandomInt(-3, 3),
+                        duration: (ticksPerBeat / 4) - 10
                     });
                 }
-                events.push({ tick: startTick, type: 'pitch', channel: 6, value: 8192 });
+                
+                // Hienovarainen portamento-pitch-bend kuvion alkuun
+                events.push({ tick: startTick, type: 'pitch', channel: 6, value: 7800 });
+                events.push({ tick: startTick + (ticksPerBeat / 4), type: 'pitch', channel: 6, value: 8192 });
                 
                 beat += runBeats;
 
@@ -566,7 +645,6 @@ function initSynthwaveRadio() {
     function generateArpeggio(scaleInfo, chordRoot, baseOctave, bars, startTick, ticksPerBeat, style, swingAmount = 0) {
         const events = [];
         
-        // Määritetään matalampi oktaavi useammin (40% oktaavi 3, 40% oktaavi 4, 20% oktaavi 5)
         const randVal = Math.random();
         const finalOctave = (randVal < 0.4) ? 3 : (randVal < 0.8) ? 4 : 5;
 
@@ -599,7 +677,6 @@ function initSynthwaveRadio() {
                 const note = pattern[sixteenth % pattern.length];
                 let tick = barTick + (sixteenth * ticksPerBeat / 4);
                 
-                // Swing/Shuffle -siirtymä parittomille 16-osanuoteille
                 if (sixteenth % 2 === 1) {
                     tick += (ticksPerBeat / 4) * swingAmount;
                 }
@@ -611,7 +688,7 @@ function initSynthwaveRadio() {
                 events.push({ 
                     tick, 
                     type: 'note', 
-                    channel: 3, // Arpeggio Ch3
+                    channel: 3, 
                     note: Math.min(127, Math.max(0, note)), 
                     velocity, 
                     duration: noteDuration 
@@ -629,7 +706,15 @@ function initSynthwaveRadio() {
         const currentChordNotes = getChordNotes(scaleInfo, chordRoot, 5); 
         const nextChordNotes = getChordNotes(scaleInfo, nextChordRoot, 5); 
 
-        const styles = ["arpeggiated_run", "syncopated_triad", "suspension_resolve_clean"];
+        // 80-luvun ikoniset melodiakuvio-tyylit fillikanavalle
+        const styles = [
+            "arpeggiated_run", 
+            "syncopated_triad", 
+            "suspension_resolve_clean",
+            "retro_octave_jump",
+            "miami_fifths",
+            "pentatonic_cascade"
+        ];
         const chosenStyle = getRandomItem(styles);
 
         if (chosenStyle === "arpeggiated_run") {
@@ -645,17 +730,17 @@ function initSynthwaveRadio() {
                     type: 'note',
                     channel: 5,
                     note: notes[i],
-                    velocity: 80,
+                    velocity: 82,
                     duration: (ticksPerBeat / 4) - 10
                 });
             }
-        } else if (chosenStyle === "syncopated_stutter" || chosenStyle === "syncopated_triad") {
+        } else if (chosenStyle === "syncopated_triad") {
             events.push({
                 tick: fillStartTick,
                 type: 'note',
                 channel: 5,
                 note: currentChordNotes[1], 
-                velocity: 82,
+                velocity: 84,
                 duration: ticksPerBeat / 2 - 10
             });
             events.push({
@@ -663,7 +748,7 @@ function initSynthwaveRadio() {
                 type: 'note',
                 channel: 5,
                 note: currentChordNotes[2], 
-                velocity: 85,
+                velocity: 88,
                 duration: ticksPerBeat / 2 - 10
             });
         } else if (chosenStyle === "suspension_resolve_clean") {
@@ -680,9 +765,57 @@ function initSynthwaveRadio() {
                 type: 'note',
                 channel: 5,
                 note: nextChordNotes[0], 
-                velocity: 85,
+                velocity: 88,
                 duration: ticksPerBeat / 2 - 10
             });
+        } else if (chosenStyle === "retro_octave_jump") {
+            // Ikoninen 80-luvun oktaavihyppy 16-osanuoteilla
+            const root = currentChordNotes[0];
+            const octave = root + 12;
+            const pattern = [root, octave, root, octave];
+            
+            for (let i = 0; i < 4; i++) {
+                events.push({
+                    tick: fillStartTick + (i * ticksPerBeat / 4),
+                    type: 'note',
+                    channel: 5,
+                    note: pattern[i],
+                    velocity: i % 2 === 0 ? 88 : 78,
+                    duration: (ticksPerBeat / 4) - 15
+                });
+            }
+        } else if (chosenStyle === "miami_fifths") {
+            // Jan Hammer/Miami Vice -tyylinen kaikuefektiä simuloiva nopeasti soiva kvintti-oktaavi-täyte
+            const root = currentChordNotes[0];
+            const fifth = currentChordNotes[2];
+            const octave = root + 12;
+            const pattern = [root, fifth, octave, fifth];
+            
+            for (let i = 0; i < 4; i++) {
+                events.push({
+                    tick: fillStartTick + (i * ticksPerBeat / 4),
+                    type: 'note',
+                    channel: 5,
+                    note: pattern[i],
+                    velocity: 90 - (i * 4), // Äänen dynaaminen lasku
+                    duration: (ticksPerBeat / 4) - 10
+                });
+            }
+        } else if (chosenStyle === "pentatonic_cascade") {
+            // Laskeva pentatoninen kuvio, joka purkautuu kauniisti seuraavan tahdin perussäveleen
+            const root = currentChordNotes[0];
+            const pattern = [root + 12, root + 9, root + 7, root + 4]; // Oktaavi, seksti, kvintti, terssi
+            
+            for (let i = 0; i < 4; i++) {
+                events.push({
+                    tick: fillStartTick + (i * ticksPerBeat / 4),
+                    type: 'note',
+                    channel: 5,
+                    note: pattern[i],
+                    velocity: 85,
+                    duration: (ticksPerBeat / 4) - 10
+                });
+            }
         }
 
         return events;
@@ -694,7 +827,6 @@ function initSynthwaveRadio() {
         const chosenStyle = getRandomItem(styles);
 
         if (chosenStyle === "descending_toms") {
-            // Laskeva tom-filli (korkea -> matala) tahdin iskuilla ja väleillä
             events.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 100 * intensity, duration: ticksPerBeat });
             // High Tom
             events.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 50, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
@@ -702,10 +834,10 @@ function initSynthwaveRadio() {
             // Mid Tom
             events.push({ tick: startTick + ticksPerBeat * 2, type: 'note', channel: 9, note: 45, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
             events.push({ tick: startTick + ticksPerBeat * 2 + ticksPerBeat / 2, type: 'note', channel: 9, note: 43, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
-            // Floor Tom ja slammi
+            // Floor Tom ja isku
             events.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 41, velocity: 95 * intensity, duration: ticksPerBeat / 4 });
             events.push({ tick: startTick + ticksPerBeat * 3 + ticksPerBeat / 2, type: 'note', channel: 9, note: 38, velocity: 105 * intensity, duration: ticksPerBeat / 4 });
-            events.push({ tick: startTick + ticksPerBeat * 3 + ticksPerBeat / 2, type: 'note', channel: 9, note: 36, velocity: 110 * intensity, duration: ticksPerBeat / 4 });
+            events.push({ tick: startTick + ticksPerBeat * 3 + ticksPerBeat / 2, type: 'note', channel: 9, note: 36, velocity: 110 * intensity, duration: ticksPerBeat / 8 });
 
         } else if (chosenStyle === "simmons_cascade") {
             events.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 95 * intensity, duration: ticksPerBeat / 2 });
@@ -778,7 +910,6 @@ function initSynthwaveRadio() {
             const activeBars = introStyle.bars - halfBars;
             const activeStartTick = startTick + (halfBars * 4 * ticksPerBeat);
             
-            // Käydään läpi intron loppupuoliskon tahdit ja generoidaan dynaaminen sointukierto
             for (let b = 0; b < activeBars; b++) {
                 const barTick = activeStartTick + (b * 4 * ticksPerBeat);
                 const chordIdx = Math.floor(b / (doubleChordDuration ? 2 : 1)) % chordProg.length;
@@ -823,7 +954,6 @@ function initSynthwaveRadio() {
             }
             
         } else {
-            // Ei rumpujen esisoittoa: instrumentit ja dynaaminen sointukierto soivat koko intron ajan
             for (let b = 0; b < introStyle.bars; b++) {
                 const barTick = startTick + (b * 4 * ticksPerBeat);
                 const chordIdx = Math.floor(b / (doubleChordDuration ? 2 : 1)) % chordProg.length;
@@ -901,7 +1031,6 @@ function initSynthwaveRadio() {
     // ========== MAIN SONG GENERATION ENGINE ==========
     function generateFullSong() {
 
-        // ========== SEKTORAKENTEIDEN VAIHTOEHDOT ==========
         const SONG_STRUCTURES = [
             {
                 name: "CLASSIC",
@@ -915,7 +1044,6 @@ function initSynthwaveRadio() {
                     { name: "chorus2", type: "chorus" },
                     { name: "outro", type: "outro" }
                 ],
-                // Valinnaiset erikoissäännöt
                 hasBridge: true,
                 hasVerse2: true,
                 hasChorus2: true
@@ -980,13 +1108,11 @@ function initSynthwaveRadio() {
         const fadeOutChorus = Math.random() < 0.4; 
         const bassMode = Math.random() < 0.45 ? "split" : "classic"; 
         
-        // 35 % todennäköisyys, että kappaleessa soinnut kestävät tuplapituuden (vaihtuvat 2 tahdin välein)
         const doubleChordDuration = Math.random() < 0.35;
 
-        // Swing/Shuffle-voimakkuus arpeggiota varten
-        const swingAmount = getRandomItem([0, 0, 0.2, 0.33, 0.45]);
+        // Swing/Shuffle-voimakkuus arpeggiota varten (Tarkka 5 % todennäköisyys aktivoinnille)
+        const swingAmount = (Math.random() < 0.05) ? getRandomItem([0.2, 0.33, 0.45]) : 0;
 
-        // Valitaan melodian tyyppi painotuksen mukaan (Rhythmic 60% / Random 40%)
         const rollType = Math.random() * 100;
         let melodyType = "random";
         if (rollType < 60) {
@@ -997,17 +1123,14 @@ function initSynthwaveRadio() {
         const ticksPerBeat = 480;
         let allEvents = [];
 
-        // MELODIATIETOJEN TALLENNUS 
         let savedVerseMelody = null;
         let savedChorusMelody = null;
         let savedVerseStartBeat = 0;
         let savedChorusStartBeat = 0;
         
-        // ========== VALITSE SATUNNAINEN RAKENNE ==========
         const selectedStructure = getRandomItem(SONG_STRUCTURES);
         const structureType = selectedStructure.name;
 
-        // Määritellään pituudet (samat kaikille rakenteille)
         const introStyle = getRandomItem(INTRO_STYLES);
         const bridgeStyle = getRandomItem(BRIDGE_STYLES);  
         const verseBars =  16;
@@ -1017,7 +1140,6 @@ function initSynthwaveRadio() {
         const bridgeBars = selectedStructure.hasBridge ? getRandomInt(8, 12) : 0;
         const outroBars = getRandomInt(8, 12);
 
-        // Rakenna sections-taulukko valitun mallin mukaan
         const sections = [];
         for (let sectionDef of selectedStructure.sections) {
             let bars = 0;
@@ -1029,7 +1151,6 @@ function initSynthwaveRadio() {
             else if (sectionDef.type === "bridge") bars = bridgeBars;
             else if (sectionDef.type === "outro") bars = outroBars;
             
-            // Ohita jos bars === 0 (section ei ole käytössä)
             if (bars > 0) {
                 sections.push({
                     name: sectionDef.name,
@@ -1040,7 +1161,6 @@ function initSynthwaveRadio() {
             }
         }
 
-        // Tallenna rakenne info-kenttiin (myöhempää käyttöä varten)
         const structure = {
             intro: introStyle.bars,
             verse: verseBars,
@@ -1064,7 +1184,6 @@ function initSynthwaveRadio() {
             allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'section', name: s.name });
             allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'cc', channel: 4, controller: 11, value: baseVol });
             
-            // ========== FILTER SWEEP INTROSSA JA BRIDGESSÄ ==========
             if (s.name === "intro" || s.name === "bridge") {
                 const totalSectionTicks = s.bars * 4 * ticksPerBeat;
                 const filterSteps = 16;
@@ -1079,7 +1198,6 @@ function initSynthwaveRadio() {
                 allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'cc', channel: 3, controller: 74, value: 115 });
             }
 
-            // ========== KOHINASWEEP (Ch11) ENNEN KERTOSÄKEITÄ ==========
             const isBeforeChorus = (s.name === "verse" || s.name === "verse2");
             if (isBeforeChorus) {
                 const riserBars = 4;
@@ -1107,13 +1225,11 @@ function initSynthwaveRadio() {
                 }
             }
 
-            // ========== MELODIAN GENEROINTI (TOISTOMEKANISMEILLA) ==========
             let sectionMelody = [];
             const useChorusModelInOutro = (s.name === "outro" && fadeOutChorus);
 
             if (s.type !== "intro" && s.type !== "bridge" && (s.type !== "outro" || useChorusModelInOutro)) {
                 
-                // VERSE: ensimmäinen generoidaan, loput käyttää samaa siirretyillä tikeillä
                 if (s.type === "verse") {
                     if (!savedVerseMelody) {
                         savedVerseMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, s.type, melodyType, melodyRhythmName, doubleChordDuration);
@@ -1129,7 +1245,6 @@ function initSynthwaveRadio() {
                     }
                 }
                 
-                // CHORUS: ensimmäinen generoidaan, loput käyttää samaa siirretyillä tikeillä
                 else if (s.type === "chorus") {
                     if (!savedChorusMelody) {
                         savedChorusMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName, doubleChordDuration);
@@ -1145,7 +1260,6 @@ function initSynthwaveRadio() {
                     }
                 }
                 
-                // MUUT TYYPIT
                 else {
                     sectionMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName, doubleChordDuration);
                 }
@@ -1153,7 +1267,6 @@ function initSynthwaveRadio() {
                 allEvents.push(...sectionMelody);
             }
 
-            // ========== BASSOPATTERNIN VALINTA ==========
             let currentBassPattern = BASS_PATTERNS[defaultBassPatternName];
             if (s.type === "chorus" || useChorusModelInOutro) {
                 currentBassPattern = BASS_PATTERNS["sixteenth"];
@@ -1161,9 +1274,7 @@ function initSynthwaveRadio() {
                 currentBassPattern = BASS_PATTERNS["eighth"];
             }
 
-            // ========== TAHDEITTÄINEN LOOPPI (SOINNUT, BASSO, ARPEGGIO) ==========
             for (let bar = 0; bar < s.bars; bar++) {
-                // Huomioidaan chord progression kesto, jos tuplakesto on päällä (kesto 8 iskua / 2 tahtia per sointu)
                 const chordIdx = Math.floor((currentBeat / 4 + bar) / (doubleChordDuration ? 2 : 1)) % chordProg.length;
                 const nextChordIdx = Math.floor((currentBeat / 4 + bar + 1) / (doubleChordDuration ? 2 : 1)) % chordProg.length;
                 const chordRoot = chordProg[chordIdx];
@@ -1180,7 +1291,6 @@ function initSynthwaveRadio() {
                 const applyStop = isLastBarOfVerse && songHasStop;
                 const isArpKickPhase = (s.type === "bridge" && bridgeStyle === "arp_kick_build" && bar < 4);
 
-                // INTRO
                 if (s.isIntro) {
                     if (bar === 0) {
                         const introEvents = generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirstIntro, bassMode, swingAmount, doubleChordDuration);
@@ -1188,7 +1298,6 @@ function initSynthwaveRadio() {
                     }
                 }
                 
-                // BRIDGE
                 else if (s.type === "bridge") {
                     if (!isArpKickPhase) {
                         chordNotes.forEach(note => {
@@ -1233,9 +1342,7 @@ function initSynthwaveRadio() {
                     }
                 }
                 
-                // VERSE, CHORUS, OUTRO
                 else {
-                    // Suodinkäyrä CC74
                     const sweepSteps = 5;
                     for (let i = 0; i < sweepSteps; i++) {
                         const sweepTick = startTick + Math.floor((i / (sweepSteps - 1)) * 240);
@@ -1243,7 +1350,6 @@ function initSynthwaveRadio() {
                         allEvents.push({ tick: sweepTick, type: 'cc', channel: 2, controller: 74, value: sweepVal });
                     }
 
-                    // SOINNUT (Ch2)
                     chordNotes.forEach(note => {
                         let vel = (s.type === "chorus" || useChorusModelInOutro) ? 82 : 64;
                         if (s.type === "outro") vel = 45;
@@ -1255,7 +1361,6 @@ function initSynthwaveRadio() {
                         }
                     });
                     
-                    // BASSO
                     const bassNoteLow = chordNotes[0] - 12;
                     const bassNoteHigh = chordNotes[0];
                     
@@ -1288,7 +1393,6 @@ function initSynthwaveRadio() {
                         }
                     }
                     
-                    // ARPEGGIO (Ch3)
                     if (!applyStop) {
                         const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
                         allEvents.push(...arpEvents);
@@ -1298,7 +1402,6 @@ function initSynthwaveRadio() {
                         allEvents.push(...truncatedArps);
                     }
                     
-                    // MELODIC FILL (Ch5) kertosäkeissä
                     if ((s.type === "chorus" || useChorusModelInOutro) && bar % 2 === 1 && Math.random() < 0.35 && !applyStop) {
                         const fillEvents = generateDynamicMelodicFill(scaleInfo, chordRoot, nextChordRoot, barMelody, startTick, ticksPerBeat);
                         allEvents.push(...fillEvents);
@@ -1306,7 +1409,6 @@ function initSynthwaveRadio() {
                 }
             }
             
-            // ========== RUMPUT (ERILLINEN LOOPPI) ==========
             for (let bar = 0; bar < s.bars; bar++) {
                 const startTick = (currentBeat + bar * 4) * ticksPerBeat;
                 let intensity = (s.type === "chorus") ? 1.0 : (s.type === "verse" ? 0.75 : 0.5);
@@ -1332,13 +1434,11 @@ function initSynthwaveRadio() {
                     continue;
                 }
 
-                // TOM FILL siirryttäessä kertosäkeeseen (alkaa tahdin alusta, jolloin se loppuu ennen uuden osion alkua)
                 if (transitionsToChorus && isLastBarOfSection) {
                     addDynamicTomFill(allEvents, startTick, ticksPerBeat, intensity);
                     continue;
                 }
 
-                // BRIDGEN RUMPUT
                 if (s.type === "bridge") {
                     if (bar >= 8 && !isLastBarOfSection) {
                         allEvents.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
@@ -1348,9 +1448,7 @@ function initSynthwaveRadio() {
                     }
                 }
                 
-                // VERSE/CHORUS/OUTRO RUMMUT
                 else {
-                    // KICK LOGIIKKA
                     const pattern = kickPattern.pattern;
                     const stepsPerBar = 16;
                     const totalSteps = pattern.length;
@@ -1376,7 +1474,6 @@ function initSynthwaveRadio() {
                         }
                     }
                         
-                    // SNARE / CLAP
                     if (!isLastBarOfSection) {
                         allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 85 * intensity, duration: ticksPerBeat / 2 });
                         allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 38, velocity: 85 * intensity, duration: ticksPerBeat / 2 });
@@ -1384,7 +1481,6 @@ function initSynthwaveRadio() {
                             allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 39, velocity: 80 * intensity, duration: ticksPerBeat / 2 });
                             allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 39, velocity: 80 * intensity, duration: ticksPerBeat / 2 });
                             
-                            // Italo Disco -tyyliset kaksi peräkkäistä clap-iskua tahdin loppuun satunnaisesti 2. tai 4. tahdilla
                             if ((bar % 4 === 1 || bar % 4 === 3) && Math.random() < 0.5) {
                                 allEvents.push({ tick: startTick + ticksPerBeat * 3.5, type: 'note', channel: 9, note: 39, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
                                 allEvents.push({ tick: startTick + ticksPerBeat * 3.75, type: 'note', channel: 9, note: 39, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
@@ -1400,13 +1496,11 @@ function initSynthwaveRadio() {
                     }
                 }
                 
-                // HI-HAT (sisältää myös avoimen hatun 4. iskulla kertosäkeessä)
                 if (s.type !== "bridge") {
                     if (s.type === "chorus" || useChorusModelInOutro) {
                         for (let i = 0; i < 16; i++) {
                             const tickOffset = i * ticksPerBeat / 4;
                             if (i === 12) {
-                                // Avoin hattu (GM Note 46)
                                 allEvents.push({ tick: startTick + tickOffset, type: 'note', channel: 9, note: 46, velocity: 85, duration: ticksPerBeat / 4 });
                             } else {
                                 const isOffbeat = (i % 4 === 2);
@@ -1422,7 +1516,6 @@ function initSynthwaveRadio() {
                 }
             }
 
-            // ========== SOLO (CH6) BRIDGE / OUTRO -OSIOISSA ==========
             if (s.type === "bridge" || (s.type === "outro" && !fadeOutChorus)) {
                 if (s.type === "outro" || bridgeStyle === "space_sweep" || bridgeStyle === "tension_builder") {
                     const soloEvents = generateSolo(scaleInfo, chordProg, s.bars, currentBeat, doubleChordDuration);
@@ -1430,7 +1523,6 @@ function initSynthwaveRadio() {
                 }
             }
             
-            // ========== OUTRO FADEOUT (jos fadeOutChorus käytössä) ==========
             if (s.name === "outro" && fadeOutChorus) {
                 const outroStartTick = currentBeat * ticksPerBeat;
                 const outroTotalTicks = s.bars * 4 * ticksPerBeat;
@@ -1448,24 +1540,21 @@ function initSynthwaveRadio() {
             currentBeat += s.bars * 4;
         }
 
-        // LOPPUUN JÄÄVÄ YKSITTÄINEN SOINTU, JOKA FADEAA ULOS
-        // Älä lisää loppusointua, jos on fadeOutChorus (koska se fadeaa jo itse)
         if (!fadeOutChorus) {
             const finalChordTick = currentBeat * ticksPerBeat;
-            const finalChordNotes = getDreamyVoiceLedChord(scaleInfo, chordProg[0], 4, prevChordNotes); // palataan perussointuun
+            const finalChordNotes = getDreamyVoiceLedChord(scaleInfo, chordProg[0], 4, prevChordNotes); 
             
             finalChordNotes.forEach(note => {
                 allEvents.push({
                     tick: finalChordTick,
                     type: 'note',
-                    channel: 2, // Ch2 Pad
+                    channel: 2, 
                     note: note,
                     velocity: 80,
-                    duration: ticksPerBeat * 8 // Kestää 8 iskua
+                    duration: ticksPerBeat * 8 
                 });
             });
             
-            // Kaunis loppufeidaus viimeiselle soinnulle Ch2
             const finalFadeSteps = 24;
             for (let i = 0; i <= finalFadeSteps; i++) {
                 const stepTick = finalChordTick + Math.floor((i / finalFadeSteps) * ticksPerBeat * 8);
@@ -1567,14 +1656,12 @@ function initSynthwaveRadio() {
     function sendMIDIEvent(event) {
         if (!event) return;
 
-        // 1. Lasketaan skaalattu velocity
         let scaledVel = event.velocity;
         if (event.type === 'note') {
             scaledVel = getScaledVelocity(event.velocity, event.channel, event.note);
             triggerSpectrumBar(event.channel, event.note, scaledVel);
         }
 
-        // TÄRKEÄ KORJAUS: Välitetään tapahtuma (Note-On, CC, Pitch bend) WAV-äänimoottorille!
         if (typeof window.onMIDIEvent === 'function') {
             const wavEvent = event.type === 'note' ? { ...event, velocity: scaledVel } : event;
             window.onMIDIEvent(wavEvent);
@@ -1589,13 +1676,9 @@ function initSynthwaveRadio() {
             return;
         }
 
-        // 3. Note-Off -ajastukset ja aktiiviset nuotit AINA (riippumatta selectedOutput-tilasta)
         if (event.type === 'note') {
-            // Luodaan uniikki ID tälle nuotti-iskulle asynkronisen sekaannuksen estämiseksi
             const noteId = Math.random().toString(36).substring(2, 11);
             
-            // Jos kyseisellä kanavalla on jo soimassa sama nuotti, sammutetaan se dynaamisesti 
-            // ennen uuden käynnistämistä jumiutuneiden tai ylikirjoittuvien nuottien ehkäisemiseksi.
             const existingIndex = activeNotes.findIndex(n => n.channel === event.channel && n.note === event.note);
             if (existingIndex > -1) {
                 const oldNote = activeNotes[existingIndex];
@@ -1613,8 +1696,6 @@ function initSynthwaveRadio() {
                 activeNotes.splice(existingIndex, 1);
             }
 
-            // Sointukanavan (Ch2) sointuvaihtojen pakotettu nuottien sammutus.
-            // Pysäytetään kaikki aktiiviset Ch2 nuotit, jotka ovat alkaneet aikaisemmalla tikillä kuin tämä uusi nuotti.
             if (event.channel === 2) {
                 const notesToStop = activeNotes.filter(n => n.channel === 2 && n.tick < event.tick);
                 notesToStop.forEach(oldNote => {
@@ -1640,10 +1721,8 @@ function initSynthwaveRadio() {
             const noteOffTime = event.duration * currentBeatLenMs / 480;
             
             setTimeout(() => {
-                // Lähetetään Note-Off VAIN jos kyseistä nuottia ei ole jo ylikirjoitettu tai poistettu
                 const activeIndex = activeNotes.findIndex(n => n.id === noteId);
                 if (activeIndex > -1) {
-                    // Lähetetään Note-Off selaimen äänimoottorille
                     if (typeof window.onMIDIEvent === 'function') {
                         window.onMIDIEvent({
                             type: 'note',
@@ -1652,7 +1731,6 @@ function initSynthwaveRadio() {
                             velocity: 0
                         });
                     }
-                    // Lähetetään Note-Off fyysiselle MIDI-ulostulolle
                     if (selectedOutput) {
                         try { selectedOutput.send([0x80 + (event.channel - 1), event.note, 0]); } catch(e) {}
                     }
@@ -1661,7 +1739,6 @@ function initSynthwaveRadio() {
             }, noteOffTime);
         }
 
-        // 4. Jos fyysistä MIDI-laitetta ei ole valittu, keskeytetään tässä (WAV jo käsitelty yllä!)
         if (!selectedOutput) return;
 
         try {
@@ -1683,7 +1760,6 @@ function initSynthwaveRadio() {
         isPlaying = true;
         currentEventIndex = 0;
 
-        // Arvotaan satunnaiset soundivariaatiot tälle kappaleelle
         if (typeof window.selectRandomSongVariants === 'function') {
             window.selectRandomSongVariants();
         }
@@ -1700,7 +1776,6 @@ function initSynthwaveRadio() {
         outroStartTick = 0;
         outroBars = song.outroBars || 8;
         
-        // Reaaliaikainen toistotyökalu dynaamisella tempontunnistuksella ja Tape Wobble -efektillä
         function tickLoop() {
             if (!isPlaying) return;
             
@@ -1711,13 +1786,11 @@ function initSynthwaveRadio() {
             let liveBPM = song.bpm;
             let tapeWobbleProgress = 0;
             
-            // VINYL STOP & TAPE WOBBLE OUTROSA
             if (currentSectionName === 'outro') {
                 const elapsedTicksInOutro = accumulatedTicks - outroStartTick;
                 const outroTotalTicks = outroBars * 4 * 480;
                 const progress = Math.min(1.0, Math.max(0, elapsedTicksInOutro / outroTotalTicks));
                 
-                // Tasaisesti hidastuva tempo ("Vinyl stop")
                 liveBPM = song.bpm * (1.0 - progress * 0.10); 
                 if (liveBPM < 10) liveBPM = 10; 
                 
@@ -1726,11 +1799,9 @@ function initSynthwaveRadio() {
             
             currentBPM = liveBPM; 
             
-            // Konvertoidaan kulunut aika MIDI-tiksiksi muuttuvan tempon mukaan
             const deltaTicks = deltaMs * liveBPM / 125;
             accumulatedTicks += deltaTicks;
             
-            // Tape Wobble: Lähetetään pitch-bending huojunta dynaamisesti
             if (selectedOutput && tapeWobbleProgress > 0) {
                 const wobbleTime = now / 100;
                 const wobbleVal = 8192 + Math.sin(wobbleTime) * 200 * tapeWobbleProgress;
@@ -1741,7 +1812,6 @@ function initSynthwaveRadio() {
                 });
             }
             
-            // Laukaistaan kaikki kertyneelle ajalle kuuluvat tapahtumat
             while (currentEventIndex < song.events.length && song.events[currentEventIndex].tick <= accumulatedTicks) {
                 const ev = song.events[currentEventIndex];
                 if (ev) sendMIDIEvent(ev);
@@ -1767,7 +1837,6 @@ function initSynthwaveRadio() {
         document.getElementById('stereoLed').classList.remove('active');
         document.getElementById('sectionDisplay').innerText = "PAUSED";
         
-        // Pysäytetään kaikki aktiiviset nuotit selaimen WAV-äänimoottorista
         if (typeof window.onMIDIEvent === 'function') {
             activeNotes.forEach(n => {
                 window.onMIDIEvent({
