@@ -32,6 +32,7 @@ const MELODY_RHYTHMS = {
     "driven":      [1, 0, 0, 1, 0, 0, 1, 1],
     "syncopated":  [1, 0, 1, 0, 0, 1, 0, 1],
     "longing":     [1, 0, 0, 0, 0, 1, 1, 1],
+    "nightly":     [1, 1, 1, 1, 0, 0, 0, 0],
     "straight":    [1, 1, 1, 1, 1, 1, 1, 1],
     "half_time":   [1, 0, 0, 0, 1, 0, 0, 0],
     "triplet_feel":[1, 0, 1, 0, 0, 1, 0, 1],
