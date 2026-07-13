@@ -243,107 +243,207 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
 
     const allowedSteps = [1, -1, 2, -2, 3, -3, -4, 0];  
 
-    if (melodyType === "rythmic") {
-        let currentScaleDegree = chordProg[0] || 0;
-        
-        for (let bar = 0; bar < phraseBars; bar++) {
-            const randomRhythmName = getRandomItem(Object.keys(MELODY_RHYTHMS));
-            const pattern = MELODY_RHYTHMS[randomRhythmName] || MELODY_RHYTHMS["driving"];
-            
-            const activeSteps = [];
-            for (let i = 0; i < pattern.length; i++) {
-                if (pattern[i] === 1) activeSteps.push(i);
-            }
-            
-            for (let i = 0; i < activeSteps.length; i++) {
+    // 70% todennäköisyys uudelle sointusidonnaiselle motiivi/kysymys-vastaus-algoritmille
+    const useSointuMotiivi = Math.random() < 0.70;
 
-                if (Math.random() < 0.05) {
+    if (useSointuMotiivi) {
+        const allowedDegrees = [8, 10, 12, 13, 14];
+        const pattern = MELODY_RHYTHMS[melodyRhythmName] || MELODY_RHYTHMS["driving"];
+        
+        // Tahti 1: A, Kysymys (arvotaan vapaasti rytmikuva ja sävelet)
+        const pitchesQ = Array(8).fill(null);
+        for (let s = 0; s < 8; s++) {
+            if (pattern[s] === 1) {
+                pitchesQ[s] = getRandomItem(allowedDegrees);
+            }
+        }
+
+        // Tahti 2: A', Vastaus (käytetään samaa rytmiä, mutta siirretään säveliä askel ylös tai alas)
+        const pitchesAns = Array(8).fill(null);
+        for (let s = 0; s < 8; s++) {
+            if (pattern[s] === 1) {
+                const idx = allowedDegrees.indexOf(pitchesQ[s]);
+                const shift = Math.random() > 0.5 ? 1 : -1;
+                const newIdx = Math.max(0, Math.min(allowedDegrees.length - 1, idx + shift));
+                pitchesAns[s] = allowedDegrees[newIdx];
+            }
+        }
+
+        // Tahti 3: A, Kertaus (toistetaan ensimmäinen kysymys)
+        const pitchesRep = pitchesQ.slice();
+
+        // Tahti 4: B, Ratkaisu (yksinkertaistettu rytmi, joka päättyy vakaaseen säveleeseen 8, 12 tai 15)
+        const rhythmB = MELODY_RHYTHMS["minimal"] || [1, 0, 0, 0, 1, 0, 0, 0];
+        const pitchesB = Array(8).fill(null);
+        
+        let lastActiveIdx = -1;
+        for (let s = 0; s < 8; s++) {
+            if (rhythmB[s] === 1) {
+                lastActiveIdx = s;
+            }
+        }
+        for (let s = 0; s < 8; s++) {
+            if (rhythmB[s] === 1) {
+                if (s === lastActiveIdx) {
+                    pitchesB[s] = getRandomItem([8, 12, 15]);
+                } else {
+                    pitchesB[s] = getRandomItem(allowedDegrees);
+                }
+            }
+        }
+
+        // Muodostetaan sävelet 4 tahdin fraaseiksi
+        for (let barOfPhrase = 0; barOfPhrase < phraseBars; barOfPhrase++) {
+            let rArr, pArr;
+            if (barOfPhrase === 0) { rArr = pattern; pArr = pitchesQ; }
+            else if (barOfPhrase === 1) { rArr = pattern; pArr = pitchesAns; }
+            else if (barOfPhrase === 2) { rArr = pattern; pArr = pitchesRep; }
+            else { rArr = rhythmB; pArr = pitchesB; }
+
+            for (let s = 0; s < 8; s++) {
+                if (rArr[s] === 1) {
+                    // Lasketaan nuotin pito seuraavaan askeleeseen asti
+                    let nextActiveStep = 8;
+                    for (let next = s + 1; next < 8; next++) {
+                        if (rArr[next] === 1) {
+                            nextActiveStep = next;
+                            break;
+                        }
+                    }
+                    const durationBeats = (nextActiveStep - s) * stepDurationBeats;
+                    const stepBeatInBar = s * stepDurationBeats;
+                    const relativeBeat = (barOfPhrase * 4) + stepBeatInBar;
+
+                    // Määritetään sointu kulloisenkin iskun mukaan
+                    const absBeat = startBeat + relativeBeat;
+                    const chordIdx = Math.floor(absBeat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
+                    const currentChordRoot = chordProg[chordIdx] || 0;
+
+                    const degree = pArr[s];
+                    let baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
+                    
+                    // Sointusidonnainen sävelkorkeus pääsävellajin asteikolla
+                    let midiNote = getMidiFromScaleIndex(currentChordRoot + (degree - 8), baseOctave);
+
+                    while (midiNote > 74) midiNote -= 12;
+                    while (midiNote < 48) midiNote += 12;
+
+                    let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
+                    velocity += getRandomInt(-5, 5);
+
+                    phraseEvents.push({
+                        beatOffset: relativeBeat,
+                        note: midiNote,
+                        velocity: velocity,
+                        durationBeats: durationBeats
+                    });
+                }
+            }
+        }
+    } else {
+        // Alkuperäinen 30% todennäköisyysluokka (Rhythmic tai Random)
+        if (melodyType === "rythmic") {
+            let currentScaleDegree = chordProg[0] || 0;
+            
+            for (let bar = 0; bar < phraseBars; bar++) {
+                const randomRhythmName = getRandomItem(Object.keys(MELODY_RHYTHMS));
+                const pattern = MELODY_RHYTHMS[randomRhythmName] || MELODY_RHYTHMS["driving"];
+                
+                const activeSteps = [];
+                for (let i = 0; i < pattern.length; i++) {
+                    if (pattern[i] === 1) activeSteps.push(i);
+                }
+                
+                for (let i = 0; i < activeSteps.length; i++) {
+
+                    if (Math.random() < 0.05) {
+                        continue;
+                    }
+
+                    const stepIdx = activeSteps[i];
+                    const nextStepIdx = (i + 1 < activeSteps.length) ? activeSteps[i + 1] : pattern.length;
+                    const durationBeats = (nextStepIdx - stepIdx) * stepDurationBeats;
+                    
+                    const stepBeatInBar = stepIdx * stepDurationBeats;
+                    const relativeBeat = (bar * 4) + stepBeatInBar;
+                    
+                    const step = getRandomItem(allowedSteps);
+                    currentScaleDegree += step;
+                    if (currentScaleDegree < 0) currentScaleDegree += 7;
+                    if (currentScaleDegree > 14) currentScaleDegree -= 7;
+                    
+                    let baseOctave = 4;
+                    if (sectionType === "chorus" || sectionType === "chorus2") {
+                        baseOctave = 5;
+                    } else if (sectionType === "verse" || sectionType === "verse2" || sectionType === "pre-chorus" || sectionType === "pre-chorus2") {
+                        baseOctave = 4;
+                    }
+                    
+                    let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
+
+                    while (midiNote > 74) {
+                        midiNote -= 12;
+                    }
+                    while (midiNote < 48) {
+                        midiNote += 12;
+                    }
+
+                    const cappedNote = midiNote;
+                    
+                    let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
+                    velocity += getRandomInt(-5, 5);
+                    
+                    phraseEvents.push({
+                        beatOffset: relativeBeat,
+                        note: cappedNote,
+                        velocity: velocity,
+                        durationBeats: durationBeats
+                    });
+                }
+            }
+        } else {
+            let currentScaleDegree = chordProg[0] || 0;
+            let beat = 0;
+            const maxBeats = phraseBars * 4; 
+            
+            while (beat < maxBeats) {
+                let duration = getRandomItem([1.0, 1.5, 2.0, 3.0, 4.0, 6.0]);
+                if (beat + duration > maxBeats) {
+                    duration = maxBeats - beat;
+                }
+                
+                const isRest = Math.random() < 0.25;
+                
+                if (isRest) {
+                    beat += duration;
                     continue;
                 }
-
-                const stepIdx = activeSteps[i];
-                const nextStepIdx = (i + 1 < activeSteps.length) ? activeSteps[i + 1] : pattern.length;
-                const durationBeats = (nextStepIdx - stepIdx) * stepDurationBeats;
-                
-                const stepBeatInBar = stepIdx * stepDurationBeats;
-                const relativeBeat = (bar * 4) + stepBeatInBar;
                 
                 const step = getRandomItem(allowedSteps);
                 currentScaleDegree += step;
-                if (currentScaleDegree < 0) currentScaleDegree += 7;
-                if (currentScaleDegree > 14) currentScaleDegree -= 7;
+
+                const chordIdx = Math.floor(beat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
+                const currentChordRoot = chordProg[chordIdx];
+                currentScaleDegree = (currentChordRoot + (currentScaleDegree % 7)) % 7;
                 
-                let baseOctave = 4;
-                if (sectionType === "chorus" || sectionType === "chorus2") {
-                    baseOctave = 5;
-                } else if (sectionType === "verse" || sectionType === "verse2" || sectionType === "pre-chorus" || sectionType === "pre-chorus2") {
-                    baseOctave = 4;
-                }
-                
+                const baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
                 let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
-
-                while (midiNote > 74) {
-                    midiNote -= 12;
-                }
-                while (midiNote < 48) {
-                    midiNote += 12;
-                }
-
-                const cappedNote = midiNote;
+                
+                while (midiNote > 74) midiNote -= 12;
+                while (midiNote < 48) midiNote += 12;
                 
                 let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
                 velocity += getRandomInt(-5, 5);
                 
                 phraseEvents.push({
-                    beatOffset: relativeBeat,
-                    note: cappedNote,
+                    beatOffset: beat,
+                    note: midiNote,
                     velocity: velocity,
-                    durationBeats: durationBeats
+                    durationBeats: duration
                 });
-            }
-        }
-    } else {
-        let currentScaleDegree = chordProg[0] || 0;
-        let beat = 0;
-        const maxBeats = phraseBars * 4; 
-        
-        while (beat < maxBeats) {
-            let duration = getRandomItem([1.0, 1.5, 2.0, 3.0, 4.0, 6.0]);
-            if (beat + duration > maxBeats) {
-                duration = maxBeats - beat;
-            }
-            
-            const isRest = Math.random() < 0.25;
-            
-            if (isRest) {
+                
                 beat += duration;
-                continue;
             }
-            
-            const step = getRandomItem(allowedSteps);
-            currentScaleDegree += step;
-
-            const chordIdx = Math.floor(beat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
-            const currentChordRoot = chordProg[chordIdx];
-            currentScaleDegree = (currentChordRoot + (currentScaleDegree % 7)) % 7;
-            
-            const baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
-            let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
-            
-            while (midiNote > 74) midiNote -= 12;
-            while (midiNote < 48) midiNote += 12;
-            
-            let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
-            velocity += getRandomInt(-5, 5);
-            
-            phraseEvents.push({
-                beatOffset: beat,
-                note: midiNote,
-                velocity: velocity,
-                durationBeats: duration
-            });
-            
-            beat += duration;
         }
     }
     
@@ -424,12 +524,10 @@ function generateSolo(scaleInfo, chordProg, totalBars, startBeat, doubleChordDur
                 duration: durationTicks
             });
 
-            // Lasketaan diatoninen etäisyys (puolisävelaskelina) asteikon seuraavaan säveleen puhtaan bendin takaamiseksi
             const note1 = getMidi(currentChordRoot + degree, 5);
             const note2 = getMidi(currentChordRoot + degree + 1, 5);
-            const semitonesUp = Math.min(2, Math.max(1, note2 - note1)); // Yleensä 1 tai 2 semitonia
+            const semitonesUp = Math.min(2, Math.max(1, note2 - note1)); 
 
-            // Pitch bend -arvon laskenta (MIDI bend alue ±2 puolisävelaskelta, 8192 on keskikohta ja 4096 = 1 puolisävelaskel)
             const targetBend = 8192 + (semitonesUp * 4096);
             const cappedBend = Math.min(16383, targetBend);
 
@@ -960,7 +1058,6 @@ function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat
     return events;
 }
 
-// Section generators for verse, chorus, pre-chorus, bridge, and outro would be defined similarly, each with their own unique patterns and variations.
 function generateFullSong() {
     const SONG_STRUCTURES = [
         {
