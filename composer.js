@@ -336,14 +336,11 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
     const isRhythmicFallback = !useSointuMotiivi && (roll < 0.98);
 
     if (useSointuMotiivi) {
-        // Sävelet suhteessa sointuun: 8 (perus), 10 (sekunti), 11 (sus4), 12 (kvintti), 13 (augmented / ylitsevuotava), 14 (septimi)
         const allowedDegrees = [8, 10, 11, 12, 13, 14];
         const pattern = MELODY_RHYTHMS[melodyRhythmName] || MELODY_RHYTHMS["driving"];
         
-        // Melodian rytmeistä nuotteja jää pois vain 1 % todennäköisyydellä
         const activePattern = pattern.map(step => (step === 1 && Math.random() < 0.01) ? 0 : step);
 
-        // Tahti 1: A, Kysymys (arvotaan vapaasti rytmikuva ja sävelet)
         const pitchesQ = Array(8).fill(null);
         let runCounter = 0;
         let runStep = 1;
@@ -595,13 +592,10 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
             
             let note = pe.note;
 
-            // Melodian parannus: Joka toinen kierto (phrase) päättyy ylemmäs, joka toinen alemmas
             if (pe.beatOffset === maxOffset && maxOffset !== -1) {
                 if (p % 2 === 1) {
-                    // Pariton kierto (1, 3...): Soitetaan loppunootissa oktaavia korkeampi lopetus
                     note += 12;
                 } else {
-                    // Parillinen kierto (0, 2...): Soitetaan alempi, vakaampi lopetus
                     note -= 12;
                 }
                 while (note > 84) note -= 12;
@@ -836,7 +830,7 @@ function generateSolo(scaleInfo, chordProg, totalBars, startBeat, doubleChordDur
     return events;
 }
 
-function generateArpeggio(scaleInfo, chordRoot, baseOctave, bars, startTick, ticksPerBeat, style, swingAmount = 0) {
+function generateArpeggio(scaleInfo, chordRoot, baseOctave, bars, startTick, ticksPerBeat, style, swingAmount = 0, halfSpeed = false) {
     const events = [];
     
     const randVal = Math.random();
@@ -859,23 +853,41 @@ function generateArpeggio(scaleInfo, chordRoot, baseOctave, bars, startTick, tic
         pattern = [r0, t0, f0, r1, t1, f1, r2, t1];
     } else if (style === "driving_octaves") {
         pattern = [r0, r0 + 12, r0, r0 + 12, t0, t0 + 12, f0, f0 + 12];
+    } else if (style === "laser_glide") {
+        pattern = [r0, t0, f0, t0, r1, t1, f1, t1];
+    } else if (style === "sunset_breeze") {
+        pattern = [f0, t0, r0, t0, f1, t1, r1, t1];
+    } else if (style === "hyperdrive") {
+        pattern = [r0, r1, f0, f1, t0, t1, f0, f1];
+    } else if (style === "classic_triad") {
+        pattern = [r0, t0, f0, t0, r0, t0, f0, t0];
+    } else if (style === "retro_wave") {
+        pattern = [r0, t1, f0, r1, t0, f1, r0, t0];
+    } else if (style === "ascending_octaves") {
+        pattern = [r0, r1, t0, t1, f0, f1, r1, r2];
+    } else if (style === "descending_octaves") {
+        pattern = [r2, r1, f1, f0, t1, t0, r1, r0];
+    } else if (style === "classic_up_down") {
+        pattern = [r0, t0, f0, r1, t1, r1, f0, t0];
     } else {
         pattern = [r0, t0, f0, r1, t1, r1, f0, t0];
     }
 
-    const noteDuration = (ticksPerBeat / 4) * 0.85;
+    const stepDivisor = halfSpeed ? 2 : 4; // 2 = 1/8 nuotit (hidas), 4 = 1/16 nuotit (normaali)
+    const stepsPerBar = halfSpeed ? 8 : 16;
+    const noteDuration = (ticksPerBeat / stepDivisor) * 0.85;
 
     for (let bar = 0; bar < bars; bar++) {
         const barTick = startTick + (bar * 4 * ticksPerBeat);
-        for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
-            const note = pattern[sixteenth % pattern.length];
-            let tick = barTick + (sixteenth * ticksPerBeat / 4);
+        for (let step = 0; step < stepsPerBar; step++) {
+            const note = pattern[step % pattern.length];
+            let tick = barTick + (step * ticksPerBeat / stepDivisor);
             
-            if (sixteenth % 2 === 1) {
-                tick += (ticksPerBeat / 4) * swingAmount;
+            if (step % 2 === 1) {
+                tick += (ticksPerBeat / stepDivisor) * swingAmount;
             }
             
-            const isStrongBeat = (sixteenth % 4 === 0);
+            const isStrongBeat = (step % (halfSpeed ? 2 : 4) === 0);
             let velocity = isStrongBeat ? 64 : 48;
             velocity += getRandomInt(-5, 5);
 
@@ -1054,7 +1066,7 @@ function addDynamicTomFill(events, startTick, ticksPerBeat, intensity) {
         
         const t4 = startTick + ticksPerBeat * 3;
         events.push({ tick: t4, type: 'note', channel: 9, note: 50, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
-        events.push({ tick: t4 + ticksPerBeat / 4, type: 'note', channel: 9, note: 48, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t4 + ticksPerBeat / 4, type: 'note', channel: 48, note: 48, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
         events.push({ tick: t4 + ticksPerBeat / 2, type: 'note', channel: 9, note: 38, velocity: 105 * intensity, duration: ticksPerBeat / 4 });
         events.push({ tick: t4 + 3 * ticksPerBeat / 4, type: 'note', channel: 9, note: 36, velocity: 110 * intensity, duration: ticksPerBeat / 8 });
 
@@ -1073,7 +1085,7 @@ function addDynamicTomFill(events, startTick, ticksPerBeat, intensity) {
     }
 }
 
-function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirst, bassMode, swingAmount = 0, doubleChordDuration = false) {
+function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirst, bassMode, swingAmount = 0, doubleChordDuration = false, arpHalfSpeed = false) {
     const events = [];
     let prevChordNotes = null;
     
@@ -1132,7 +1144,7 @@ function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat
             }
 
             if (introStyle.hasArp) {
-                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, barTick, ticksPerBeat, arpStyle, swingAmount);
+                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, barTick, ticksPerBeat, arpStyle, swingAmount, arpHalfSpeed);
                 events.push(...arpEvents);
             }
         }
@@ -1176,7 +1188,7 @@ function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat
             }
 
             if (introStyle.hasArp) {
-                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, barTick, ticksPerBeat, arpStyle, swingAmount);
+                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, barTick, ticksPerBeat, arpStyle, swingAmount, arpHalfSpeed);
                 events.push(...arpEvents);
             }
 
@@ -1288,11 +1300,16 @@ function generateFullSong() {
         chordNames.push(scaleInfo.chordNames[offset]);
     }
     
-    // Tempon ylärajaa nostettu nopeampia 80-luvun synth-pop-biisejä varten, alin säilytetty
     const tempo = getRandomInt(88, 162);
     const defaultBassPatternName = getRandomItem(Object.keys(BASS_PATTERNS));
     const runPattern = getRandomItem(RUN_PATTERNS);
-    const arpStyle = getRandomItem(["classic_up_down", "cyber_chase", "space_bounce", "neon_pulse", "retro_sweep", "driving_octaves"]);
+    
+    // Arpeggiokuvioiden valinta uusilla kuvioilla täydennettynä
+    const arpStyle = getRandomItem([
+        "classic_up_down", "cyber_chase", "space_bounce", "neon_pulse", "retro_sweep", 
+        "driving_octaves", "laser_glide", "sunset_breeze", "hyperdrive", "classic_triad", 
+        "retro_wave", "ascending_octaves", "descending_octaves"
+    ]);
     
     const songHasClap = Math.random() < 0.6; 
     const drumsFirstIntro = Math.random() < 0.25; 
@@ -1302,7 +1319,11 @@ function generateFullSong() {
     
     const doubleChordDuration = Math.random() < 0.35;
 
-    const swingAmount = (Math.random() < 0.05) ? getRandomItem([0.2, 0.33, 0.45]) : 0;
+    // Swing-todennäköisyys laskettu 2 prosenttiin
+    const swingAmount = (Math.random() < 0.02) ? getRandomItem([0.2, 0.33, 0.45]) : 0;
+
+    // Arpeggion puolinopeus (1/8 soitto) 40 % todennäköisyydellä
+    const arpHalfSpeed = Math.random() < 0.40;
 
     const rollType = Math.random() * 100;
     let melodyType = "random";
@@ -1321,7 +1342,6 @@ function generateFullSong() {
     let savedChorusStartBeat = 0;
     let savedPreChorusStartBeat = 0;
     
-    // 50 % todennäköisyys melodiselle synth pop -bassokuviolle (perussävel, terssi, kvintti)
     const useSynthPopBass = Math.random() < 0.50;
 
     let savedVerseBass = null;
@@ -1507,7 +1527,6 @@ function generateFullSong() {
             allEvents.push(...sectionMelody);
         }
 
-        // Melodisen synth pop -bassokuvion generointi ja toistaminen vastaavissa laulurakenteissa
         let sectionBassEvents = [];
         const isMelodicSection = (s.type === "verse" || s.type === "pre-chorus" || s.type === "chorus") || (s.name === "outro" && fadeOutChorus);
         
@@ -1585,7 +1604,8 @@ function generateFullSong() {
 
             if (s.isIntro) {
                 if (bar === 0) {
-                    const introEvents = generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirstIntro, bassMode, swingAmount, doubleChordDuration);
+                    // Siirretään arpHalfSpeed-muuttuja introlle
+                    const introEvents = generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirstIntro, bassMode, swingAmount, doubleChordDuration, arpHalfSpeed);
                     allEvents.push(...introEvents);
                 }
             }
@@ -1624,7 +1644,8 @@ function generateFullSong() {
                     }
                 }
 
-                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
+                // Lisätty arpHalfSpeed-tuki arpeggiogenerointiin
+                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount, arpHalfSpeed);
                 allEvents.push(...arpEvents);
                 
                 if (bar >= 4 && bar < 8 && !isArpKickPhase) {
@@ -1654,7 +1675,6 @@ function generateFullSong() {
                     }
                 });
                 
-                // Ohitetaan standardi bassokuvio mikäli uusi synth pop -bassomelodia on päällä
                 const skipStandardBass = useSynthPopBass && (s.type === "verse" || s.type === "pre-chorus" || s.type === "chorus");
 
                 if (!skipStandardBass) {
@@ -1692,10 +1712,10 @@ function generateFullSong() {
                 }
                 
                 if (!applyStop) {
-                    const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
+                    const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount, arpHalfSpeed);
                     allEvents.push(...arpEvents);
                 } else {
-                    const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
+                    const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount, arpHalfSpeed);
                     const truncatedArps = arpEvents.filter(ev => ev.tick < startTick + ticksPerBeat);
                     allEvents.push(...truncatedArps);
                 }
@@ -1893,6 +1913,7 @@ function generateFullSong() {
         bridgeStyle: bridgeStyle,
         runPattern: runPattern.name,
         arpStyle: arpStyle,
+        arpHalfSpeed: arpHalfSpeed, // Lisätty biisimateriaaliin
         bassMode: bassMode,
         hasClap: songHasClap,
         drumsFirstIntro: drumsFirstIntro,
@@ -1906,6 +1927,5 @@ function generateFullSong() {
     };
 }
 
-// Globaalit vientikomennot ikkunakontekstiin radio.js:ää varten
 window.getRandomInt = getRandomInt;
 window.generateFullSong = generateFullSong;
