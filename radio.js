@@ -1,3 +1,5 @@
+// radio.js - Synthwave Radio Synthesizer Logic
+
 function initSynthwaveRadio() {
     let midiAccess = null, selectedOutput = null, currentSong = null, isPlaying = false;
     let currentTimer = null, currentEventIndex = 0;
@@ -19,10 +21,10 @@ function initSynthwaveRadio() {
     async function initMIDI() {
         try {
             midiAccess = await navigator.requestMIDIAccess();
-            const select = document.getElementById('midiOutputSelect');
-            select.innerHTML = '<option value="">-- select MIDI output --</option>';
+            const select = document.getElementById("midiOutputSelect");
+            select.innerHTML = "<option value=\"\">-- select MIDI output --</option>";
             for (let output of midiAccess.outputs.values()) {
-                select.innerHTML += `<option value="${output.id}">${output.name}</option>`;
+                select.innerHTML += "<option value=\"" + output.id + "\">" + output.name + "</option>";
             }
             select.onchange = () => {
                 selectedOutput = select.value ? midiAccess.outputs.get(select.value) : null;
@@ -30,9 +32,9 @@ function initSynthwaveRadio() {
                     sendVolumeCC(volumeValue);
                 }
             };
-            document.getElementById('status').innerHTML = "🎛️ MIDI ready. Select output & PLAY";
+            document.getElementById("status").innerHTML = "🎛️ MIDI ready. Select output & PLAY";
         } catch(e) {
-            document.getElementById('status').innerHTML = "⚠️ MIDI not supported";
+            document.getElementById("status").innerHTML = "⚠️ MIDI not supported";
         }
     }
 
@@ -40,9 +42,9 @@ function initSynthwaveRadio() {
     function sendVolumeCC(val) {
         const ccVal = Math.min(127, Math.max(0, Math.round(val * 127)));
 
-        if (typeof window.onMIDIEvent === 'function') {
+        if (typeof window.onMIDIEvent === "function") {
             window.onMIDIEvent({
-                type: 'cc',
+                type: "cc",
                 channel: 1, 
                 controller: 7,
                 value: ccVal
@@ -60,25 +62,25 @@ function initSynthwaveRadio() {
 
     // Helper to map MIDI channels and notes to sample names
     function getSampleName(channel, note) {
-        if (channel === 1) return 'bass';
-        if (channel === 2) return 'chords';
-        if (channel === 3) return 'arp';
-        if (channel === 4) return 'melody'; 
-        if (channel === 5) return 'fills';
-        if (channel === 6) return 'lead';   
-        if (channel === 7) return 'mid-bass';
-        if (channel === 10) return 'sub-bass';
-        if (channel === 11) return 'sweep';
+        if (channel === 1) return "bass";
+        if (channel === 2) return "chords";
+        if (channel === 3) return "arp";
+        if (channel === 4) return "melody"; 
+        if (channel === 5) return "fills";
+        if (channel === 6) return "lead";   
+        if (channel === 7) return "mid-bass";
+        if (channel === 10) return "sub-bass";
+        if (channel === 11) return "sweep";
         
         if (channel === 9) { 
-            if (note === 36) return 'kick';
-            if (note === 38) return 'snare';
-            if (note === 39) return 'clap';
-            if (note === 42) return 'closed-hat';
-            if (note === 46) return 'open-hat';
-            if (note === 50 || note === 48) return 'tom1';
-            if (note === 45 || note === 43) return 'tom2';
-            if (note === 41) return 'tom3';
+            if (note === 36) return "kick";
+            if (note === 38) return "snare";
+            if (note === 39) return "clap";
+            if (note === 42) return "closed-hat";
+            if (note === 46) return "open-hat";
+            if (note === 50 || note === 48) return "tom1";
+            if (note === 45 || note === 43) return "tom2";
+            if (note === 41) return "tom3";
         }
         return null;
     }
@@ -98,7 +100,7 @@ function initSynthwaveRadio() {
     }
 
     function triggerSpectrumBar(channel, note, velocity) {
-        if (typeof channel !== 'number' || typeof note !== 'number' || typeof velocity !== 'number') return;
+        if (typeof channel !== "number" || typeof note !== "number" || typeof velocity !== "number") return;
         let targetBar = -1;
         if (channel === 9) { 
             if (note === 36) targetBar = 0; 
@@ -138,34 +140,34 @@ function initSynthwaveRadio() {
         if (!event) return;
 
         let scaledVel = event.velocity;
-        if (event.type === 'note') {
+        if (event.type === "note") {
             scaledVel = getScaledVelocity(event.velocity, event.channel, event.note);
             triggerSpectrumBar(event.channel, event.note, scaledVel);
         }
 
-        if (typeof window.onMIDIEvent === 'function') {
-            const wavEvent = event.type === 'note' ? { ...event, velocity: scaledVel } : event;
+        if (typeof window.onMIDIEvent === "function") {
+            const wavEvent = event.type === "note" ? { ...event, velocity: scaledVel } : event;
             window.onMIDIEvent(wavEvent);
         }
 
-        if (event.type === 'section') {
+        if (event.type === "section") {
             currentSectionName = event.name;
-            document.getElementById('sectionDisplay').innerText = String(event.name).toUpperCase();
-            if (event.name === 'outro') {
+            document.getElementById("sectionDisplay").innerText = String(event.name).toUpperCase();
+            if (event.name === "outro") {
                 outroStartTick = event.tick;
             }
             return;
         }
 
-        if (event.type === 'note') {
+        if (event.type === "note") {
             const noteId = Math.random().toString(36).substring(2, 11);
             
             const existingIndex = activeNotes.findIndex(n => n.channel === event.channel && n.note === event.note);
             if (existingIndex > -1) {
                 const oldNote = activeNotes[existingIndex];
-                if (typeof window.onMIDIEvent === 'function') {
+                if (typeof window.onMIDIEvent === "function") {
                     window.onMIDIEvent({
-                        type: 'note',
+                        type: "note",
                         channel: oldNote.channel,
                         note: oldNote.note,
                         velocity: 0
@@ -180,9 +182,9 @@ function initSynthwaveRadio() {
             if (event.channel === 2) {
                 const notesToStop = activeNotes.filter(n => n.channel === 2 && n.tick < event.tick);
                 notesToStop.forEach(oldNote => {
-                    if (typeof window.onMIDIEvent === 'function') {
+                    if (typeof window.onMIDIEvent === "function") {
                         window.onMIDIEvent({
-                            type: 'note',
+                            type: "note",
                             channel: 2,
                             note: oldNote.note,
                             velocity: 0
@@ -204,9 +206,9 @@ function initSynthwaveRadio() {
             setTimeout(() => {
                 const activeIndex = activeNotes.findIndex(n => n.id === noteId);
                 if (activeIndex > -1) {
-                    if (typeof window.onMIDIEvent === 'function') {
+                    if (typeof window.onMIDIEvent === "function") {
                         window.onMIDIEvent({
-                            type: 'note',
+                            type: "note",
                             channel: event.channel,
                             note: event.note,
                             velocity: 0
@@ -223,11 +225,11 @@ function initSynthwaveRadio() {
         if (!selectedOutput) return;
 
         try {
-            if (event.type === 'note') {
+            if (event.type === "note") {
                 selectedOutput.send([0x90 + (event.channel - 1), event.note, scaledVel]);
-            } else if (event.type === 'cc') {
+            } else if (event.type === "cc") {
                 selectedOutput.send([0xB0 + (event.channel - 1), event.controller, event.value]);
-            } else if (event.type === 'pitch') {
+            } else if (event.type === "pitch") {
                 const lsb = event.value & 0x7F;
                 const msb = (event.value >> 7) & 0x7F;
                 selectedOutput.send([0xE0 + (event.channel - 1), lsb, msb]);
@@ -241,16 +243,16 @@ function initSynthwaveRadio() {
         isPlaying = true;
         currentEventIndex = 0;
 
-        if (typeof window.selectRandomSongVariants === 'function') {
+        if (typeof window.selectRandomSongVariants === "function") {
             window.selectRandomSongVariants();
         }
         
         let lastTime = performance.now();
         let accumulatedTicks = 0;
         
-        document.getElementById('leftWheel').classList.add('spinning');
-        document.getElementById('rightWheel').classList.add('spinning');
-        document.getElementById('stereoLed').classList.add('active');
+        document.getElementById("leftWheel").classList.add("spinning");
+        document.getElementById("rightWheel").classList.add("spinning");
+        document.getElementById("stereoLed").classList.add("active");
         sendVolumeCC(volumeValue);
         
         currentSectionName = "intro";
@@ -267,7 +269,7 @@ function initSynthwaveRadio() {
             let liveBPM = song.bpm;
             let tapeWobbleProgress = 0;
             
-            if (currentSectionName === 'outro') {
+            if (currentSectionName === "outro") {
                 const elapsedTicksInOutro = accumulatedTicks - outroStartTick;
                 const outroTotalTicks = outroBars * 4 * 480;
                 const progress = Math.min(1.0, Math.max(0, elapsedTicksInOutro / outroTotalTicks));
@@ -313,15 +315,15 @@ function initSynthwaveRadio() {
     function stopPlayback() {
         isPlaying = false;
         if (currentTimer) { clearTimeout(currentTimer); currentTimer = null; }
-        document.getElementById('leftWheel').classList.remove('spinning');
-        document.getElementById('rightWheel').classList.remove('spinning');
-        document.getElementById('stereoLed').classList.remove('active');
-        document.getElementById('sectionDisplay').innerText = "PAUSED";
+        document.getElementById("leftWheel").classList.remove("spinning");
+        document.getElementById("rightWheel").classList.remove("spinning");
+        document.getElementById("stereoLed").classList.remove("active");
+        document.getElementById("sectionDisplay").innerText = "PAUSED";
         
-        if (typeof window.onMIDIEvent === 'function') {
+        if (typeof window.onMIDIEvent === "function") {
             activeNotes.forEach(n => {
                 window.onMIDIEvent({
-                    type: 'note',
+                    type: "note",
                     channel: n.channel,
                     note: n.note,
                     velocity: 0
@@ -347,14 +349,14 @@ function initSynthwaveRadio() {
         isScanning = true;
         stopPlayback();
         const nextSong = window.generateFullSong();
-        currentBPM = nextSong.bpm; // Asetetaan globaali tempo
-        const freqEl = document.getElementById('frequency');
-        freqEl.classList.add('tuning-glitch');
-        document.getElementById('stereoLed').classList.remove('active');
-        document.getElementById('status').innerHTML = "📟 ETSITÄÄN TAAJUUTTA... [TUNING]";
-        document.getElementById('songTitle').innerText = "📻 SEARCHING... 📻";
-        document.getElementById('chordsDisplay').innerHTML = "--- NOISE ---";
-        document.getElementById('sectionDisplay').innerText = "TUNING";
+        currentBPM = nextSong.bpm; 
+        const freqEl = document.getElementById("frequency");
+        freqEl.classList.add("tuning-glitch");
+        document.getElementById("stereoLed").classList.remove("active");
+        document.getElementById("status").innerHTML = "📟 ETSITÄÄN TAAJUUTTA... [TUNING]";
+        document.getElementById("songTitle").innerText = "📻 SEARCHING... 📻";
+        document.getElementById("chordsDisplay").innerHTML = "--- NOISE ---";
+        document.getElementById("sectionDisplay").innerText = "TUNING";
         const startFreq = parseFloat(freqEl.innerText) || 87.5;
         const targetFreq = parseFloat(nextSong.frequency);
         const steps = 30; 
@@ -368,50 +370,52 @@ function initSynthwaveRadio() {
             simulateStaticSpectrum();
             if (currentStep >= steps) {
                 clearInterval(scanTimer);
-                freqEl.classList.remove('tuning-glitch');
+                freqEl.classList.remove("tuning-glitch");
                 isScanning = false;
                 currentSong = nextSong;
                 freqEl.innerText = currentSong.frequency + " FM";
-                document.getElementById('songTitle').innerText = currentSong.name;
-                document.getElementById('cassetteLabel').innerText = currentSong.name;
+                document.getElementById("songTitle").innerText = currentSong.name;
+                document.getElementById("cassetteLabel").innerText = currentSong.name;
                 
-                const melodyLabel = currentSong.melodyType === "rythmic" ? `Rytmi: ${currentSong.melodyRhythm}` : "Motiivi (Terssi/Seksti)";
-                const swingLabel = currentSong.swing > 0 ? `Swing: ${Math.round(currentSong.swing * 100)}%` : "Straight";
+                const melodyLabel = currentSong.melodyType === "rythmic" ? "Rytmi: " + currentSong.melodyRhythm : "Motiivi (Terssi/Seksti)";
+                const swingLabel = currentSong.swing > 0 ? "Swing: " + Math.round(currentSong.swing * 100) + "%" : "Straight";
                 const chordLabel = currentSong.doubleChordDuration ? "Soinnut: 2x kesto" : "Soinnut: Normaali";
-                document.getElementById('bpmDisplay').innerHTML = `BPM: ${currentSong.bpm} | Intro: ${currentSong.introType} | Melodia: ${melodyLabel} | ${swingLabel} | ${chordLabel}`;
+                const arpSpeedLabel = currentSong.arpHalfSpeed ? "Arp: 1/8 (Hidas)" : "Arp: 1/16 (Normaali)";
                 
-                document.getElementById('chordsDisplay').innerHTML = currentSong.chords;
-                document.getElementById('sectionDisplay').innerText = "INTRO";
-                document.getElementById('status').innerHTML = `⚡ TRANSMISSION RESTORED • ${currentSong.name} ⚡`;
+                document.getElementById("bpmDisplay").innerHTML = "BPM: " + currentSong.bpm + " | Intro: " + currentSong.introType + " | Melodia: " + melodyLabel + " | " + swingLabel + " | " + chordLabel + " | " + arpSpeedLabel;
+                
+                document.getElementById("chordsDisplay").innerHTML = currentSong.chords;
+                document.getElementById("sectionDisplay").innerText = "INTRO";
+                document.getElementById("status").innerHTML = "⚡ TRANSMISSION RESTORED • " + currentSong.name + " ⚡";
                 playSong(currentSong);
             }
         }, 40);
     }
 
     function updateSpectrum() {
-        document.querySelectorAll('.bar').forEach((bar, idx) => {
+        document.querySelectorAll(".bar").forEach((bar, idx) => {
             if (barAmplitudes[idx] > 5) {
                 barAmplitudes[idx] -= 8; if (barAmplitudes[idx] < 5) barAmplitudes[idx] = 5;
             }
-            bar.style.height = barAmplitudes[idx] + '%';
+            bar.style.height = barAmplitudes[idx] + "%";
         });
     }
     
     function simulateStaticSpectrum() {
-        document.querySelectorAll('.bar').forEach((bar, idx) => {
+        document.querySelectorAll(".bar").forEach((bar, idx) => {
             const height = window.getRandomInt(45, 100); barAmplitudes[idx] = height;
-            bar.style.height = height + '%';
+            bar.style.height = height + "%";
         });
     }
     
     setInterval(() => {
         if (isPlaying && !isScanning) updateSpectrum();
         else if (!isScanning) {
-            document.querySelectorAll('.bar').forEach((bar, idx) => {
+            document.querySelectorAll(".bar").forEach((bar, idx) => {
                 if (barAmplitudes[idx] > 5) {
                     barAmplitudes[idx] -= 6; if (barAmplitudes[idx] < 5) barAmplitudes[idx] = 5;
                 }
-                bar.style.height = barAmplitudes[idx] + '%';
+                bar.style.height = barAmplitudes[idx] + "%";
             });
         }
     }, 50);
@@ -419,7 +423,7 @@ function initSynthwaveRadio() {
     function setupDial(dialId, initialVal, onChange) {
         const dial = document.getElementById(dialId);
         let isDragging = false, startY = 0, startVal = initialVal, val = initialVal;
-        function updateUI() { dial.style.transform = `rotate(${(30 + val * 300 + 180) % 360}deg)`; }
+        function updateUI() { dial.style.transform = "rotate(" + ((30 + val * 300 + 180) % 360) + "deg)"; }
         updateUI();
         const onStart = (e) => { isDragging = true; startY = e.touches ? e.touches[0].clientY : e.clientY; startVal = val; e.preventDefault(); };
         const onMove = (e) => {
@@ -428,12 +432,12 @@ function initSynthwaveRadio() {
             val = Math.min(1.0, Math.max(0.0, startVal + (startY - currentY) * 0.004));
             updateUI(); onChange(val);
         };
-        dial.addEventListener('mousedown', onStart);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', () => isDragging = false);
-        dial.addEventListener('touchstart', onStart, { passive: false });
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('touchend', () => isDragging = false);
+        dial.addEventListener("mousedown", onStart);
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", () => isDragging = false);
+        dial.addEventListener("touchstart", onStart, { passive: false });
+        window.addEventListener("touchmove", onMove, { passive: false });
+        window.addEventListener("touchend", () => isDragging = false);
     }
     
     function downloadMidi(song) {
@@ -454,13 +458,13 @@ function initSynthwaveRadio() {
                 trackEvents.push({ delta: 0, type: 0xFF, subtype: 0x51, data: [(tempoMicro >> 16) & 0xFF, (tempoMicro >> 8) & 0xFF, tempoMicro & 0xFF] });
             }
             for (let ev of song.events) {
-                if (ev.channel !== ch || ev.type === 'section') continue;
-                if (ev.type === 'note') {
+                if (ev.channel !== ch || ev.type === "section") continue;
+                if (ev.type === "note") {
                     trackEvents.push({ delta: ev.tick, type: 0x90, channel: ev.channel, note: ev.note, velocity: ev.velocity });
                     trackEvents.push({ delta: ev.tick + ev.duration, type: 0x80, channel: ev.channel, note: ev.note, velocity: 0 });
-                } else if (ev.type === 'cc') {
+                } else if (ev.type === "cc") {
                     trackEvents.push({ delta: ev.tick, type: 0xB0, channel: ev.channel, controller: ev.controller, value: ev.value });
-                } else if (ev.type === 'pitch') {
+                } else if (ev.type === "pitch") {
                     trackEvents.push({ delta: ev.tick, type: 0xE0, channel: ev.channel, value: ev.value });
                 }
             }
@@ -480,28 +484,27 @@ function initSynthwaveRadio() {
             const tHeader = new Uint8Array([0x4D, 0x54, 0x72, 0x6B, trackData.length >> 24, (trackData.length >> 16) & 0xFF, (trackData.length >> 8) & 0xFF, trackData.length & 0xFF]);
             tracks.push(tHeader, new Uint8Array(trackData));
         }
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([header, ...tracks], { type: "audio/midi" }));
-        a.download = `${song.name.replace(/ /g, "_")}.mid`; a.click();
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([header, ...tracks], { type: "audio/midi" }));
+        a.download = song.name.replace(/ /g, "_") + ".mid"; a.click();
     }
 
-    // Space-näppäimen kuuntelija Play/Stop-toiminnolle
-    window.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' || e.key === ' ') {
-            e.preventDefault(); // Estetään sivun oletusarvoinen vieritys
+    window.addEventListener("keydown", (e) => {
+        if (e.code === "Space" || e.key === " ") {
+            e.preventDefault(); 
             if (isPlaying) {
-                document.getElementById('stopBtn').click();
+                document.getElementById("stopBtn").click();
             } else {
-                document.getElementById('playBtn').click();
+                document.getElementById("playBtn").click();
             }
         }
     });
     
-    document.getElementById('playBtn').onclick = () => { if (!isScanning) { if (!currentSong) generateAndPlayNewSong(); else if (!isPlaying) playSong(currentSong); } };
-    document.getElementById('stopBtn').onclick = () => { stopPlayback(); document.getElementById('status').innerHTML = "⏹️ TRANSMISSION PAUSED"; };
-    document.getElementById('forwardBtn').onclick = () => { generateAndPlayNewSong(); };
-    document.getElementById('exportMidiBtn').onclick = () => { if (currentSong) downloadMidi(currentSong); else alert("Luo biisi ensin!"); };
+    document.getElementById("playBtn").onclick = () => { if (!isScanning) { if (!currentSong) generateAndPlayNewSong(); else if (!isPlaying) playSong(currentSong); } };
+    document.getElementById("stopBtn").onclick = () => { stopPlayback(); document.getElementById("status").innerHTML = "⏹️ TRANSMISSION PAUSED"; };
+    document.getElementById("forwardBtn").onclick = () => { generateAndPlayNewSong(); };
+    document.getElementById("exportMidiBtn").onclick = () => { if (currentSong) downloadMidi(currentSong); else alert("Luo biisi ensin!"); };
     
     initMIDI();
-    setupDial('volDial', 0.8, (val) => { volumeValue = val; document.getElementById('volLabel').innerText = `VOLUME: ${Math.round(val * 100)}%`; sendVolumeCC(val); });
-    setupDial('toneDial', 0.5, (val) => { toneValue = val; document.getElementById('toneLabel').innerText = `TONE: ${val < 0.35 ? "DEEP" : val > 0.75 ? "BRIGHT" : "MID"}`; });
+    setupDial("volDial", 0.8, (val) => { volumeValue = val; document.getElementById("volLabel").innerText = "VOLUME: " + Math.round(val * 100) + "%"; sendVolumeCC(val); });
+    setupDial("toneDial", 0.5, (val) => { toneValue = val; document.getElementById("toneLabel").innerText = "TONE: " + (val < 0.35 ? "DEEP" : val > 0.75 ? "BRIGHT" : "MID"); });
 }
