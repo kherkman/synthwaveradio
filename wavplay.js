@@ -64,17 +64,22 @@
     Object.keys(SAMPLE_FILES).forEach(key => {
         activeVoiceCounts[key] = 0;
         if (!window.wavSettings[key]) {
-            // Päivitetyt voimakkuudet toiveiden mukaan
             let defaultVol = 0.6;
-            if (DRUM_KEYS.includes(key)) {
-                defaultVol = 0.8; // Rumpujen default voluumi 80%
+            
+            if (key === 'arp') {
+                defaultVol = 0.8; // Arp oletusvoimakkuus 80 %
+            } else if (key === 'closed-hat') {
+                defaultVol = 0.6; // Closed Hat oletusvoimakkuus 60 %
+            } else if (DRUM_KEYS.includes(key)) {
+                defaultVol = 0.8; // Muiden rumpujen default voluumi 80 %
             } else if (key === 'chords') {
-                defaultVol = 0.8; // Sointujen default voluumi 80%
+                defaultVol = 0.8; // Sointujen default voluumi 80 %
             } else if (key === 'lead') {
-                defaultVol = 0.6; // Lead-soittimen default voluumi 60%
+                defaultVol = 0.6; // Lead-soittimen default voluumi 60 %
             } else if (key === 'melody') {
                 defaultVol = 0.9;
             }
+            
             window.wavSettings[key] = { volume: defaultVol, pan: 0.0 };
         }
     });
