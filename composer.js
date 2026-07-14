@@ -324,10 +324,13 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
         return tonic + scaleOffsets[normalizedIndex] + (oct + octaveOffset) * 12;
     }
 
-    const phraseBars = 4;
-    const numPhrases = Math.ceil(totalBars / phraseBars);
+    // 50 % todennäköisyydellä soitetaan melodia puolet hitaammin ja puolet lyhyempänä
+    const halfSpeedAndShort = Math.random() < 0.50;
+
+    const phraseBars = halfSpeedAndShort ? 2 : 4;
+    const numPhrases = Math.ceil(totalBars / (halfSpeedAndShort ? (phraseBars * 2) : phraseBars));
     const phraseEvents = [];
-    const stepDurationBeats = 0.5;
+    const stepDurationBeats = halfSpeedAndShort ? 1.0 : 0.5;
 
     const allowedSteps = [1, -1, 2, -2, 3, -3, -4, 0];  
 
@@ -449,9 +452,10 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
                     }
                     const durationBeats = (nextActiveStep - s) * stepDurationBeats;
                     const stepBeatInBar = s * stepDurationBeats;
-                    const relativeBeat = (barOfPhrase * 4) + stepBeatInBar;
+                    const relativeBeat = (barOfPhrase * (halfSpeedAndShort ? 8 : 4)) + stepBeatInBar;
 
-                    const absBeat = startBeat + relativeBeat;
+                    // Jos soitetaan puolikkaalla nopeudella, suhteellinen isku jaetaan kahdella jotta saadaan soinnut kohdistettua oikein
+                    const absBeat = startBeat + (halfSpeedAndShort ? (relativeBeat / 2) : relativeBeat);
                     const chordIdx = Math.floor(absBeat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
                     const currentChordRoot = chordProg[chordIdx] || 0;
 
@@ -499,7 +503,7 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
                     const durationBeats = (nextStepIdx - stepIdx) * stepDurationBeats;
                     
                     const stepBeatInBar = stepIdx * stepDurationBeats;
-                    const relativeBeat = (bar * 4) + stepBeatInBar;
+                    const relativeBeat = (bar * (halfSpeedAndShort ? 8 : 4)) + stepBeatInBar;
                     
                     const step = getRandomItem(allowedSteps);
                     currentScaleDegree += step;
@@ -538,10 +542,11 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
         } else {
             let currentScaleDegree = chordProg[0] || 0;
             let beat = 0;
-            const maxBeats = phraseBars * 4; 
+            const maxBeats = phraseBars * (halfSpeedAndShort ? 8 : 4); 
             
             while (beat < maxBeats) {
-                let duration = getRandomItem([1.0, 1.5, 2.0, 3.0, 4.0, 6.0]);
+                let durationVal = getRandomItem([1.0, 1.5, 2.0, 3.0, 4.0, 6.0]);
+                let duration = halfSpeedAndShort ? (durationVal * 2) : durationVal;
                 if (beat + duration > maxBeats) {
                     duration = maxBeats - beat;
                 }
@@ -556,7 +561,8 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
                 const step = getRandomItem(allowedSteps);
                 currentScaleDegree += step;
 
-                const chordIdx = Math.floor(beat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
+                const effectiveBeatForChord = halfSpeedAndShort ? (beat / 2) : beat;
+                const chordIdx = Math.floor(effectiveBeatForChord / (doubleChordDuration ? 8 : 4)) % chordProg.length;
                 const currentChordRoot = chordProg[chordIdx];
                 currentScaleDegree = (currentChordRoot + (currentScaleDegree % 7)) % 7;
                 
@@ -584,7 +590,7 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
     const maxOffset = phraseEvents.length > 0 ? Math.max(...phraseEvents.map(e => e.beatOffset)) : -1;
 
     for (let p = 0; p < numPhrases; p++) {
-        const phraseStartBeat = startBeat + (p * phraseBars * 4);
+        const phraseStartBeat = startBeat + (p * phraseBars * (halfSpeedAndShort ? 8 : 4));
         phraseEvents.forEach(pe => {
             const absoluteBeat = phraseStartBeat + pe.beatOffset;
             const tick = absoluteBeat * ticksPerBeat;
