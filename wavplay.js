@@ -67,7 +67,7 @@
             let defaultVol = 0.6;
             
             if (key === 'arp') {
-                defaultVol = 0.8; // Arp oletusvoimakkuus 80 %
+                defaultVol = 1.0; // Arp oletusvoimakkuus 100 %
             } else if (key === 'closed-hat') {
                 defaultVol = 0.6; // Closed Hat oletusvoimakkuus 60 %
             } else if (DRUM_KEYS.includes(key)) {
@@ -77,7 +77,7 @@
             } else if (key === 'lead') {
                 defaultVol = 0.6; // Lead-soittimen default voluumi 60 %
             } else if (key === 'melody') {
-                defaultVol = 0.9;
+                defaultVol = 0.7;
             }
             
             window.wavSettings[key] = { volume: defaultVol, pan: 0.0 };
