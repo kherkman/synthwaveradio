@@ -331,10 +331,14 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
     const isRhythmicFallback = !useSointuMotiivi && (roll < 0.98);
 
     if (useSointuMotiivi) {
+        // Sävelet suhteessa sointuun: 8 (perus), 10 (sekunti), 11 (sus4), 12 (kvintti), 13 (augmented / ylitsevuotava), 14 (septimi)
         const allowedDegrees = [8, 10, 11, 12, 13, 14];
         const pattern = MELODY_RHYTHMS[melodyRhythmName] || MELODY_RHYTHMS["driving"];
+        
+        // Melodian rytmeistä nuotteja jää pois vain 1 % todennäköisyydellä
         const activePattern = pattern.map(step => (step === 1 && Math.random() < 0.01) ? 0 : step);
 
+        // Tahti 1: A, Kysymys (arvotaan vapaasti rytmikuva ja sävelet)
         const pitchesQ = Array(8).fill(null);
         let runCounter = 0;
         let runStep = 1;
@@ -1063,3 +1067,840 @@ function addDynamicTomFill(events, startTick, ticksPerBeat, intensity) {
         events.push({ tick: startTick + ticksPerBeat * 3.5, type: 'note', channel: 9, note: 36, velocity: 110 * intensity, duration: ticksPerBeat / 4 });
     }
 }
+
+function generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirst, bassMode, swingAmount = 0, doubleChordDuration = false) {
+    const events = [];
+    let prevChordNotes = null;
+    
+    if (drumsFirst) {
+        const halfBars = Math.floor(introStyle.bars / 2);
+        for (let bar = 0; bar < introStyle.bars; bar++) {
+            const barTick = startTick + bar * 4 * ticksPerBeat;
+            events.push({ tick: barTick, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
+            events.push({ tick: barTick + ticksPerBeat * 2, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
+            events.push({ tick: barTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 75, duration: ticksPerBeat / 2 });
+            events.push({ tick: barTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 38, velocity: 75, duration: ticksPerBeat / 2 });
+            
+            for (let h = 0; h < 8; h++) {
+                events.push({ tick: barTick + h * ticksPerBeat / 2, type: 'note', channel: 9, note: 42, velocity: 55, duration: ticksPerBeat / 8 });
+            }
+        }
+        
+        const activeBars = introStyle.bars - halfBars;
+        const activeStartTick = startTick + (halfBars * 4 * ticksPerBeat);
+        
+        for (let b = 0; b < activeBars; b++) {
+            const barTick = activeStartTick + (b * 4 * ticksPerBeat);
+            const chordIdx = Math.floor(b / (doubleChordDuration ? 2 : 1)) % chordProg.length;
+            const chordRoot = chordProg[chordIdx];
+            const chordNotes = getDreamyVoiceLedChord(scaleInfo, chordRoot, 4, prevChordNotes);
+            prevChordNotes = chordNotes;
+
+            chordNotes.forEach(note => {
+                events.push({ tick: barTick, type: 'note', channel: 2, note, velocity: introStyle.padVel, duration: ticksPerBeat * 4 });
+            });
+
+            if (introStyle.hasBass) {
+                const bassNoteLow = chordNotes[0] - 12;
+                const bassNoteHigh = chordNotes[0];
+                if (introStyle.sixteenthBass) {
+                    for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+                        const tick = barTick + sixteenth * (ticksPerBeat / 4);
+                        if (bassMode === "split") {
+                            events.push({ tick: tick, type: 'note', channel: 10, note: bassNoteLow, velocity: 75, duration: ticksPerBeat / 6 });
+                            events.push({ tick: tick, type: 'note', channel: 7, note: bassNoteHigh, velocity: 65, duration: ticksPerBeat / 6 });
+                        } else {
+                            events.push({ tick: tick, type: 'note', channel: 1, note: bassNoteLow, velocity: 70, duration: ticksPerBeat / 6 });
+                        }
+                    }
+                } else {
+                    for (let beat = 0; beat < 4; beat++) {
+                        const tick = barTick + beat * ticksPerBeat;
+                        if (bassMode === "split") {
+                            events.push({ tick: tick, type: 'note', channel: 10, note: bassNoteLow, velocity: 70, duration: ticksPerBeat / 2 });
+                            events.push({ tick: tick, type: 'note', channel: 7, note: bassNoteHigh, velocity: 60, duration: ticksPerBeat / 2 });
+                        } else {
+                            events.push({ tick: tick, type: 'note', channel: 1, note: bassNoteLow, velocity: 65, duration: ticksPerBeat / 2 });
+                        }
+                    }
+                }
+            }
+
+            if (introStyle.hasArp) {
+                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, barTick, ticksPerBeat, arpStyle, swingAmount);
+                events.push(...arpEvents);
+            }
+        }
+        
+    } else {
+        for (let b = 0; b < introStyle.bars; b++) {
+            const barTick = startTick + (b * 4 * ticksPerBeat);
+            const chordIdx = Math.floor(b / (doubleChordDuration ? 2 : 1)) % chordProg.length;
+            const chordRoot = chordProg[chordIdx];
+            const chordNotes = getDreamyVoiceLedChord(scaleInfo, chordRoot, 4, prevChordNotes);
+            prevChordNotes = chordNotes;
+
+            chordNotes.forEach(note => {
+                events.push({ tick: barTick, type: 'note', channel: 2, note, velocity: introStyle.padVel, duration: ticksPerBeat * 4 });
+            });
+
+            if (introStyle.hasBass) {
+                const bassNoteLow = chordNotes[0] - 12;
+                const bassNoteHigh = chordNotes[0];
+                if (introStyle.sixteenthBass) {
+                    for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+                        const tick = barTick + sixteenth * (ticksPerBeat / 4);
+                        if (bassMode === "split") {
+                            events.push({ tick: tick, type: 'note', channel: 10, note: bassNoteLow, velocity: 75, duration: ticksPerBeat / 6 });
+                            events.push({ tick: tick, type: 'note', channel: 7, note: bassNoteHigh, velocity: 65, duration: ticksPerBeat / 6 });
+                        } else {
+                            events.push({ tick: tick, type: 'note', channel: 1, note: bassNoteLow, velocity: 70, duration: ticksPerBeat / 6 });
+                        }
+                    }
+                } else {
+                    for (let beat = 0; beat < 4; beat++) {
+                        const tick = barTick + beat * ticksPerBeat;
+                        if (bassMode === "split") {
+                            events.push({ tick: tick, type: 'note', channel: 10, note: bassNoteLow, velocity: 70, duration: ticksPerBeat / 2 });
+                            events.push({ tick: tick, type: 'note', channel: 7, note: bassNoteHigh, velocity: 60, duration: ticksPerBeat / 2 });
+                        } else {
+                            events.push({ tick: tick, type: 'note', channel: 1, note: bassNoteLow, velocity: 65, duration: ticksPerBeat / 2 });
+                        }
+                    }
+                }
+            }
+
+            if (introStyle.hasArp) {
+                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, barTick, ticksPerBeat, arpStyle, swingAmount);
+                events.push(...arpEvents);
+            }
+
+            if (introStyle.hasDrums) {
+                const enableIntroFill = Math.random() < 0.8; 
+                const drumBars = enableIntroFill ? (introStyle.bars - 1) : introStyle.bars;
+                if (b < drumBars) {
+                    events.push({ tick: barTick, type: 'note', channel: 9, note: 36, velocity: 50, duration: ticksPerBeat / 2 });
+                }
+                if (enableIntroFill && b === introStyle.bars - 1) {
+                    addDynamicTomFill(events, barTick, ticksPerBeat, 0.85);
+                }
+            }
+
+            const enableIntroHats = Math.random() < 0.85; 
+            if (enableIntroHats && introStyle.bars >= 6) {
+                const startBarForHats = Math.floor(introStyle.bars / 2);
+                if (b >= startBarForHats) {
+                    for (let eighth = 0; eighth < 8; eighth++) {
+                        events.push({
+                            tick: barTick + eighth * ticksPerBeat / 2,
+                            type: 'note',
+                            channel: 9,
+                            note: 42, 
+                            velocity: 52 + (eighth % 2 === 0 ? 12 : 0),
+                            duration: ticksPerBeat / 8
+                        });
+                    }
+                }
+            }
+        }
+    }
+    return events;
+}
+
+function generateFullSong() {
+    const SONG_STRUCTURES = [
+        {
+            name: "CLASSIC",
+            sections: [
+                { name: "intro", type: "intro", isIntro: true },
+                { name: "verse", type: "verse" },
+                { name: "pre-chorus", type: "pre-chorus" },
+                { name: "chorus", type: "chorus" },
+                { name: "verse2", type: "verse" },
+                { name: "pre-chorus2", type: "pre-chorus" },
+                { name: "chorus2", type: "chorus" },
+                { name: "bridge", type: "bridge" },
+                { name: "chorus3", type: "chorus" },
+                { name: "outro", type: "outro" }
+            ],
+            hasBridge: true,
+            hasVerse2: true,
+            hasChorus2: true,
+            hasChorus3: true,
+            hasPreChorus: true
+        },
+        {
+            name: "SHORT",
+            sections: [
+                { name: "intro", type: "intro", isIntro: true },
+                { name: "verse", type: "verse" },
+                { name: "chorus", type: "chorus" },
+                { name: "verse2", type: "verse" },
+                { name: "chorus2", type: "chorus" },
+                { name: "outro", type: "outro" }
+            ],
+            hasBridge: false,
+            hasVerse2: true,
+            hasChorus2: true,
+            hasPreChorus: false
+        },
+        {
+            name: "LONG",
+            sections: [
+                { name: "intro", type: "intro", isIntro: true },
+                { name: "verse", type: "verse" },
+                { name: "pre-chorus", type: "pre-chorus" },
+                { name: "chorus", type: "chorus" },
+                { name: "verse2", type: "verse" },
+                { name: "pre-chorus2", type: "pre-chorus" },
+                { name: "chorus2", type: "chorus" },
+                { name: "bridge", type: "bridge" },
+                { name: "verse3", type: "verse" },
+                { name: "pre-chorus3", type: "pre-chorus" },
+                { name: "chorus3", type: "chorus" },
+                { name: "outro", type: "outro" }
+            ],
+            hasBridge: true,
+            hasVerse2: true,
+            hasChorus2: true,
+            hasChorus3: true,
+            hasPreChorus: true
+        }
+    ];
+
+    const scaleKey = getRandomItem(Object.keys(SCALES));
+    const scaleInfo = SCALES[scaleKey];
+    const progType = getRandomItem(PROGRESSION_TYPES);
+    
+    const kickPattern = getRandomKickPattern();
+    
+    const chordProg = [];
+    const chordNames = [];
+    for (let i = 0; i < progType.template.length; i++) {
+        let offset = progType.template[i % progType.template.length];
+        offset = Math.min(Math.max(offset, 0), 6);
+        chordProg.push(offset);
+        chordNames.push(scaleInfo.chordNames[offset]);
+    }
+    
+    // Tempon ylärajaa nostettu nopeampia 80-luvun synth-pop-biisejä varten, alin säilytetty
+    const tempo = getRandomInt(88, 132);
+    const defaultBassPatternName = getRandomItem(Object.keys(BASS_PATTERNS));
+    const runPattern = getRandomItem(RUN_PATTERNS);
+    const arpStyle = getRandomItem(["classic_up_down", "cyber_chase", "space_bounce", "neon_pulse", "retro_sweep", "driving_octaves"]);
+    
+    const songHasClap = Math.random() < 0.6; 
+    const drumsFirstIntro = Math.random() < 0.25; 
+    const songHasStop = Math.random() < 0.35; 
+    const fadeOutChorus = Math.random() < 0.4; 
+    const bassMode = Math.random() < 0.45 ? "split" : "classic"; 
+    
+    const doubleChordDuration = Math.random() < 0.35;
+
+    const swingAmount = (Math.random() < 0.05) ? getRandomItem([0.2, 0.33, 0.45]) : 0;
+
+    const rollType = Math.random() * 100;
+    let melodyType = "random";
+    if (rollType < 60) {
+        melodyType = "rythmic";
+    }
+    const melodyRhythmName = getRandomItem(Object.keys(MELODY_RHYTHMS));
+
+    const ticksPerBeat = 480;
+    let allEvents = [];
+
+    let savedVerseMelody = null;
+    let savedChorusMelody = null;
+    let savedPreChorusMelody = null;
+    let savedVerseStartBeat = 0;
+    let savedChorusStartBeat = 0;
+    let savedPreChorusStartBeat = 0;
+    
+    // 50 % todennäköisyys melodiselle synth pop -bassokuviolle (perussävel, terssi, kvintti)
+    const useSynthPopBass = Math.random() < 0.50;
+
+    let savedVerseBass = null;
+    let savedChorusBass = null;
+    let savedPreChorusBass = null;
+    let savedVerseBassStartBeat = 0;
+    let savedChorusBassStartBeat = 0;
+    let savedPreChorusBassStartBeat = 0;
+
+    const selectedStructure = getRandomItem(SONG_STRUCTURES);
+    const structureType = selectedStructure.name;
+
+    const introStyle = getRandomItem(INTRO_STYLES);
+    const bridgeStyle = getRandomItem(BRIDGE_STYLES);  
+    const verseBars =  16;
+    const chorusBars = 16;
+    const preChorusBars = 8;
+    const verse2Bars = selectedStructure.hasVerse2 ? 16 : 0;
+    const chorus2Bars = selectedStructure.hasChorus2 ? 16 : 0;
+    const preChorus2Bars = selectedStructure.hasVerse2 ? 8 : 0;
+    const verse3Bars = selectedStructure.sections.some(s => s.name === "verse3") ? 16 : 0;
+    const chorus3Bars = selectedStructure.sections.some(s => s.name === "chorus3") ? 16 : 0;
+    const preChorus3Bars = selectedStructure.sections.some(s => s.name === "pre-chorus3") ? 8 : 0;
+    const bridgeBars = selectedStructure.hasBridge ? getRandomInt(8, 12) : 0;
+    const outroBars = getRandomInt(8, 12);
+
+    const sections = [];
+    for (let sectionDef of selectedStructure.sections) {
+        let bars = 0;
+        if (sectionDef.type === "intro") bars = introStyle.bars;
+        else if (sectionDef.type === "verse") {
+            if (sectionDef.name === "verse3") bars = verse3Bars;
+            else if (sectionDef.name === "verse2") bars = verse2Bars;
+            else bars = verseBars;
+        }
+        else if (sectionDef.type === "pre-chorus") {
+            if (sectionDef.name === "pre-chorus3") bars = preChorus3Bars;
+            else if (sectionDef.name === "pre-chorus2") bars = preChorus2Bars;
+            else bars = preChorusBars;
+        }
+        else if (sectionDef.type === "chorus") {
+            if (sectionDef.name === "chorus3") bars = chorus3Bars;
+            else if (sectionDef.name === "chorus2") bars = chorus2Bars;
+            else bars = chorusBars;
+        }
+        else if (sectionDef.type === "bridge") bars = bridgeBars;
+        else if (sectionDef.type === "outro") bars = outroBars;
+        
+        if (bars > 0) {
+            sections.push({
+                name: sectionDef.name,
+                bars: bars,
+                type: sectionDef.type,
+                isIntro: sectionDef.isIntro || false
+            });
+        }
+    }
+
+    const structure = {
+        intro: introStyle.bars,
+        verse: verseBars,
+        preChorus: preChorusBars,
+        chorus: chorusBars,
+        verse2: verse2Bars,
+        preChorus2: preChorus2Bars,
+        chorus2: chorus2Bars,
+        verse3: verse3Bars,
+        preChorus3: preChorus3Bars,
+        chorus3: chorus3Bars,
+        bridge: bridgeBars,
+        outro: outroBars,
+        structureType: structureType
+    };
+    
+    let currentBeat = 0;
+    let prevChordNotes = null; 
+    
+    for (let s of sections) {
+        let baseVol = 85;
+        if (s.type === "chorus") baseVol = 120;
+        else if (s.type === "verse") baseVol = 95;
+        else if (s.type === "pre-chorus") baseVol = 80;
+        else if (s.type === "bridge") baseVol = 70;
+        
+        allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'section', name: s.name });
+        allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'cc', channel: 4, controller: 11, value: baseVol });
+        
+        if (s.name === "intro" || s.name === "bridge" || s.name === "pre-chorus" || s.name === "pre-chorus2" || s.name === "pre-chorus3") {
+            const totalSectionTicks = s.bars * 4 * ticksPerBeat;
+            const filterSteps = 16;
+            for (let i = 0; i < filterSteps; i++) {
+                const tick = (currentBeat * ticksPerBeat) + Math.floor((i / filterSteps) * totalSectionTicks);
+                const ccVal = 35 + Math.floor((i / filterSteps) * 80);
+                allEvents.push({ tick, type: 'cc', channel: 2, controller: 74, value: ccVal });
+                allEvents.push({ tick, type: 'cc', channel: 3, controller: 74, value: ccVal });
+            }
+        } else {
+            allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'cc', channel: 2, controller: 74, value: 115 });
+            allEvents.push({ tick: currentBeat * ticksPerBeat, type: 'cc', channel: 3, controller: 74, value: 115 });
+        }
+
+        const isBeforeChorus = (s.name === "pre-chorus" || s.name === "pre-chorus2" || s.name === "pre-chorus3");
+        if (isBeforeChorus) {
+            const riserBars = 4;
+            const riserStartBar = Math.max(0, s.bars - riserBars);
+            const riserStartTick = (currentBeat + riserStartBar * 4) * ticksPerBeat;
+            const riserDurationTicks = riserBars * 4 * ticksPerBeat;
+            
+            allEvents.push({
+                tick: riserStartTick,
+                type: 'note',
+                channel: 11,
+                note: 60,
+                velocity: 95,
+                duration: riserDurationTicks - 20
+            });
+            
+            const steps = 32;
+            for (let i = 0; i <= steps; i++) {
+                const stepTick = riserStartTick + Math.floor((i / steps) * riserDurationTicks);
+                const cutoffVal = 10 + Math.floor((i / steps) * 117);
+                const exprVal = 10 + Math.floor((i / steps) * 105);
+                
+                allEvents.push({ tick: stepTick, type: 'cc', channel: 11, controller: 74, value: cutoffVal });
+                allEvents.push({ tick: stepTick, type: 'cc', channel: 11, controller: 11, value: exprVal });
+            }
+        }
+
+        let sectionMelody = [];
+        const useChorusModelInOutro = (s.name === "outro" && fadeOutChorus);
+
+        if (s.type !== "intro" && s.type !== "bridge" && (s.type !== "outro" || useChorusModelInOutro)) {
+            
+            if (s.type === "verse") {
+                if (!savedVerseMelody) {
+                    savedVerseMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, s.type, melodyType, melodyRhythmName, doubleChordDuration);
+                    savedVerseStartBeat = currentBeat;
+                    sectionMelody = savedVerseMelody;
+                } else {
+                    const beatDiff = currentBeat - savedVerseStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionMelody = savedVerseMelody.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            
+            else if (s.type === "pre-chorus") {
+                if (!savedPreChorusMelody) {
+                    savedPreChorusMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, s.type, melodyType, melodyRhythmName, doubleChordDuration);
+                    savedPreChorusStartBeat = currentBeat;
+                    sectionMelody = savedPreChorusMelody;
+                } else {
+                    const beatDiff = currentBeat - savedPreChorusStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionMelody = savedPreChorusMelody.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            
+            else if (s.type === "chorus") {
+                if (!savedChorusMelody) {
+                    savedChorusMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName, doubleChordDuration);
+                    savedChorusStartBeat = currentBeat;
+                    sectionMelody = savedChorusMelody;
+                } else {
+                    const beatDiff = currentBeat - savedChorusStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionMelody = savedChorusMelody.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            
+            else {
+                sectionMelody = generateMelody(scaleInfo, chordProg, s.bars, currentBeat, useChorusModelInOutro ? "chorus" : s.type, melodyType, melodyRhythmName, doubleChordDuration);
+            }
+            
+            allEvents.push(...sectionMelody);
+        }
+
+        // Melodisen synth pop -bassokuvion generointi ja toistaminen vastaavissa laulurakenteissa
+        let sectionBassEvents = [];
+        const isMelodicSection = (s.type === "verse" || s.type === "pre-chorus" || s.type === "chorus") || (s.name === "outro" && fadeOutChorus);
+        
+        if (useSynthPopBass && isMelodicSection) {
+            if (s.type === "verse") {
+                if (!savedVerseBass) {
+                    savedVerseBass = generateMelodicBass(scaleInfo, chordProg, s.bars, currentBeat, s.type, doubleChordDuration);
+                    savedVerseBassStartBeat = currentBeat;
+                    sectionBassEvents = savedVerseBass;
+                } else {
+                    const beatDiff = currentBeat - savedVerseBassStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionBassEvents = savedVerseBass.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            else if (s.type === "pre-chorus") {
+                if (!savedPreChorusBass) {
+                    savedPreChorusBass = generateMelodicBass(scaleInfo, chordProg, s.bars, currentBeat, s.type, doubleChordDuration);
+                    savedPreChorusBassStartBeat = currentBeat;
+                    sectionBassEvents = savedPreChorusBass;
+                } else {
+                    const beatDiff = currentBeat - savedPreChorusBassStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionBassEvents = savedPreChorusBass.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            else if (s.type === "chorus" || (s.name === "outro" && fadeOutChorus)) {
+                if (!savedChorusBass) {
+                    savedChorusBass = generateMelodicBass(scaleInfo, chordProg, s.bars, currentBeat, "chorus", doubleChordDuration);
+                    savedChorusBassStartBeat = currentBeat;
+                    sectionBassEvents = savedChorusBass;
+                } else {
+                    const beatDiff = currentBeat - savedChorusBassStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionBassEvents = savedChorusBass.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            allEvents.push(...sectionBassEvents);
+        }
+
+        let currentBassPattern = BASS_PATTERNS[defaultBassPatternName];
+        if (s.type === "chorus" || useChorusModelInOutro) {
+            currentBassPattern = BASS_PATTERNS["sixteenth"];
+        } else if (s.type === "verse") {
+            currentBassPattern = BASS_PATTERNS["eighth"];
+        } else if (s.type === "pre-chorus") {
+            currentBassPattern = BASS_PATTERNS["driving"];
+        }
+
+        for (let bar = 0; bar < s.bars; bar++) {
+            const chordIdx = Math.floor((currentBeat / 4 + bar) / (doubleChordDuration ? 2 : 1)) % chordProg.length;
+            const nextChordIdx = Math.floor((currentBeat / 4 + bar + 1) / (doubleChordDuration ? 2 : 1)) % chordProg.length;
+            const chordRoot = chordProg[chordIdx];
+            const nextChordRoot = chordProg[nextChordIdx];
+            
+            const chordNotes = getDreamyVoiceLedChord(scaleInfo, chordRoot, 4, prevChordNotes);
+            prevChordNotes = chordNotes;
+
+            const startTick = (currentBeat + bar * 4) * ticksPerBeat;
+            const barEndTick = startTick + 4 * ticksPerBeat;
+            
+            const barMelody = sectionMelody.filter(ev => ev.type === 'note' && ev.tick >= startTick && ev.tick < barEndTick);
+            const isLastBarOfVerse = (s.name === "verse" || s.name === "verse2" || s.name === "verse3") && (bar === s.bars - 1);
+            const applyStop = isLastBarOfVerse && songHasStop;
+            const isArpKickPhase = (s.type === "bridge" && bridgeStyle === "arp_kick_build" && bar < 4);
+
+            if (s.isIntro) {
+                if (bar === 0) {
+                    const introEvents = generateIntro(scaleInfo, chordProg, introStyle, startTick, ticksPerBeat, arpStyle, drumsFirstIntro, bassMode, swingAmount, doubleChordDuration);
+                    allEvents.push(...introEvents);
+                }
+            }
+            
+            else if (s.type === "bridge") {
+                if (!isArpKickPhase) {
+                    chordNotes.forEach(note => {
+                        allEvents.push({ tick: startTick, type: 'note', channel: 2, note, velocity: 50, duration: ticksPerBeat * 4.0 });
+                    });
+                }
+                
+                const bassNoteLow = chordNotes[0] - 12;
+                const bassNoteHigh = chordNotes[0];
+                let bassVel = 50;
+                if (bar >= 4) bassVel = 65;
+                if (bar >= 8) bassVel = 80;
+
+                if (!isArpKickPhase) {
+                    if (bridgeStyle === "tension_builder" || bar >= 8) {
+                        for (let eighth = 0; eighth < 8; eighth++) {
+                            const bassTick = startTick + (eighth * ticksPerBeat / 2);
+                            if (bassMode === "split") {
+                                allEvents.push({ tick: bassTick, type: 'note', channel: 7, note: bassNoteHigh, velocity: bassVel, duration: ticksPerBeat / 3 });
+                                allEvents.push({ tick: bassTick, type: 'note', channel: 10, note: bassNoteLow, velocity: bassVel, duration: ticksPerBeat / 3 });
+                            } else {
+                                allEvents.push({ tick: bassTick, type: 'note', channel: 1, note: bassNoteLow, velocity: bassVel, duration: ticksPerBeat / 3 });
+                            }
+                        }
+                    } else {
+                        if (bassMode === "split") {
+                            allEvents.push({ tick: startTick, type: 'note', channel: 7, note: bassNoteHigh, velocity: bassVel, duration: ticksPerBeat * 3.5 });
+                            allEvents.push({ tick: startTick, type: 'note', channel: 10, note: bassNoteLow, velocity: bassVel, duration: ticksPerBeat * 3.5 });
+                        } else {
+                            allEvents.push({ tick: startTick, type: 'note', channel: 1, note: bassNoteLow, velocity: bassVel, duration: ticksPerBeat * 3.5 });
+                        }
+                    }
+                }
+
+                const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
+                allEvents.push(...arpEvents);
+                
+                if (bar >= 4 && bar < 8 && !isArpKickPhase) {
+                    for (let i = 0; i < 8; i++) {
+                        allEvents.push({ tick: startTick + i * ticksPerBeat / 2, type: 'note', channel: 9, note: 42, velocity: 50, duration: ticksPerBeat / 8 });
+                    }
+                }
+            }
+            
+            else {
+                const sweepSteps = 5;
+                for (let i = 0; i < sweepSteps; i++) {
+                    const sweepTick = startTick + Math.floor((i / (sweepSteps - 1)) * 240);
+                    const sweepVal = 40 + Math.floor((i / (sweepSteps - 1)) * 70);
+                    allEvents.push({ tick: sweepTick, type: 'cc', channel: 2, controller: 74, value: sweepVal });
+                }
+
+                chordNotes.forEach(note => {
+                    let vel = (s.type === "chorus" || useChorusModelInOutro) ? 82 : 64;
+                    if (s.type === "outro") vel = 45;
+                    if (s.type === "pre-chorus") vel = 55;
+
+                    if (applyStop) {
+                        allEvents.push({ tick: startTick, type: 'note', channel: 2, note, velocity: vel, duration: ticksPerBeat * 0.8 });
+                    } else {
+                        allEvents.push({ tick: startTick, type: 'note', channel: 2, note, velocity: vel, duration: ticksPerBeat * 4.0 });
+                    }
+                });
+                
+                // Ohitetaan standardi bassokuvio mikäli uusi synth pop -bassomelodia on päällä
+                const skipStandardBass = useSynthPopBass && (s.type === "verse" || s.type === "pre-chorus" || s.type === "chorus");
+
+                if (!skipStandardBass) {
+                    const bassNoteLow = chordNotes[0] - 12;
+                    const bassNoteHigh = chordNotes[0];
+                    
+                    if (bassMode === "split") {
+                        const subDuration = applyStop ? (ticksPerBeat * 0.8) : (ticksPerBeat * 3.8);
+                        allEvents.push({ tick: startTick, type: 'note', channel: 10, note: bassNoteLow, velocity: 105, duration: subDuration });
+
+                        for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+                            if (applyStop && sixteenth >= 4) continue;
+                            const patternPos = Math.floor(sixteenth / 4);
+                            if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
+                                const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
+                                let bassVel = (s.type === "chorus" || useChorusModelInOutro) ? 95 : (s.type === "verse" ? 80 : 65);
+                                const isOffbeat = (sixteenth % 2 === 1);
+                                const activeBassNote = isOffbeat ? chordNotes[0] : bassNoteHigh;
+                                allEvents.push({ tick: bassTick, type: 'note', channel: 7, note: activeBassNote, velocity: isOffbeat ? Math.floor(bassVel * 0.8) : bassVel, duration: ticksPerBeat / 6 });
+                            }
+                        }
+                    } else {
+                        for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+                            if (applyStop && sixteenth >= 4) continue;
+                            const patternPos = Math.floor(sixteenth / 4);
+                            if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
+                                const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
+                                let bassVel = (s.type === "chorus" || useChorusModelInOutro) ? 100 : (s.type === "verse" ? 85 : 70);
+                                const isOffbeat = (sixteenth % 2 === 1);
+                                const activeBassNote = (isOffbeat && (s.type === "chorus" || useChorusModelInOutro)) ? bassNoteHigh : bassNoteLow;
+                                allEvents.push({ tick: bassTick, type: 'note', channel: 1, note: activeBassNote, velocity: isOffbeat ? Math.floor(bassVel * 0.8) : bassVel, duration: ticksPerBeat / 6 });
+                            }
+                        }
+                    }
+                }
+                
+                if (!applyStop) {
+                    const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
+                    allEvents.push(...arpEvents);
+                } else {
+                    const arpEvents = generateArpeggio(scaleInfo, chordRoot, 5, 1, startTick, ticksPerBeat, arpStyle, swingAmount);
+                    const truncatedArps = arpEvents.filter(ev => ev.tick < startTick + ticksPerBeat);
+                    allEvents.push(...truncatedArps);
+                }
+                
+                if ((s.type === "chorus" || useChorusModelInOutro) && bar % 2 === 1 && Math.random() < 0.35 && !applyStop) {
+                    const fillEvents = generateDynamicMelodicFill(scaleInfo, chordRoot, nextChordRoot, barMelody, startTick, ticksPerBeat);
+                    allEvents.push(...fillEvents);
+                }
+            }
+        }
+        
+        for (let bar = 0; bar < s.bars; bar++) {
+            const startTick = (currentBeat + bar * 4) * ticksPerBeat;
+            let intensity = (s.type === "chorus") ? 1.0 : (s.type === "verse" ? 0.75 : 0.5);
+            if (s.type === "pre-chorus") intensity = 0.65;
+            if (s.type === "intro" && !introStyle.hasDrums) continue;
+            if (s.type === "intro") intensity = 0.4;
+            if (s.type === "outro") intensity = 0.35;
+            
+            const isLastBarOfSection = (bar === s.bars - 1);
+            const transitionsToChorus = (s.name === "verse" || s.name === "verse2" || s.name === "verse3" || s.name === "bridge" || s.name === "pre-chorus" || s.name === "pre-chorus2" || s.name === "pre-chorus3");
+            const isLastBarOfVerse = (s.name === "verse" || s.name === "verse2" || s.name === "verse3") && (bar === s.bars - 1);
+            const applyStop = isLastBarOfVerse && songHasStop;
+
+            if (applyStop) {
+                allEvents.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 110, duration: ticksPerBeat / 2 });
+                continue;
+            }
+
+            const isArpKickPhase = (s.type === "bridge" && bridgeStyle === "arp_kick_build" && bar < 4);
+
+            if (isArpKickPhase) {
+                allEvents.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
+                allEvents.push({ tick: startTick + ticksPerBeat * 2, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
+                continue;
+            }
+
+            if (transitionsToChorus && isLastBarOfSection) {
+                addDynamicTomFill(allEvents, startTick, ticksPerBeat, intensity);
+                continue;
+            }
+
+            if (s.type === "bridge") {
+                if (bar >= 8 && !isLastBarOfSection) {
+                    allEvents.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
+                    allEvents.push({ tick: startTick + ticksPerBeat * 2, type: 'note', channel: 9, note: 36, velocity: 85, duration: ticksPerBeat / 2 });
+                    allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 55, duration: ticksPerBeat / 4 });
+                    allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 38, velocity: 65, duration: ticksPerBeat / 4 });
+                }
+            }
+            
+            else {
+                const pattern = kickPattern.pattern;
+                const stepsPerBar = 16;
+                const totalSteps = pattern.length;
+                
+                for (let step = 0; step < totalSteps; step++) {
+                    if (pattern[step] === 1) {
+                        const stepInBar = step % stepsPerBar;
+                        const barOffset = Math.floor(step / stepsPerBar);
+                        const stepTick = startTick + (barOffset * 4 * ticksPerBeat) + (stepInBar * ticksPerBeat / 4);
+                        
+                        let kickVel = 95 * intensity;
+                        if (stepInBar === 0) kickVel = 105 * intensity;
+                        if (stepInBar === 8) kickVel = 100 * intensity;
+                        
+                        allEvents.push({ 
+                            tick: stepTick, 
+                            type: 'note', 
+                            channel: 9, 
+                            note: 36, 
+                            velocity: kickVel, 
+                            duration: ticksPerBeat / 6 
+                        });
+                    }
+                }
+                    
+                if (!isLastBarOfSection) {
+                    allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 85 * intensity, duration: ticksPerBeat / 2 });
+                    allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 38, velocity: 85 * intensity, duration: ticksPerBeat / 2 });
+                    if (songHasClap) {
+                        allEvents.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 39, velocity: 80 * intensity, duration: ticksPerBeat / 2 });
+                        allEvents.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 39, velocity: 80 * intensity, duration: ticksPerBeat / 2 });
+                        
+                        if ((bar % 4 === 1 || bar % 4 === 3) && Math.random() < 0.5) {
+                            allEvents.push({ tick: startTick + ticksPerBeat * 3.5, type: 'note', channel: 9, note: 39, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+                            allEvents.push({ tick: startTick + ticksPerBeat * 3.75, type: 'note', channel: 9, note: 39, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+                        }
+                    }
+                } else if (isLastBarOfSection) {
+                    const fillTick = startTick + (ticksPerBeat * 3);
+                    for (let f = 0; f < 4; f++) {
+                        const subTick = fillTick + (f * ticksPerBeat / 4);
+                        const rollVel = Math.floor((70 + (f * 15)) * intensity);
+                        allEvents.push({ tick: subTick, type: 'note', channel: 9, note: 38, velocity: rollVel, duration: ticksPerBeat / 8 });
+                    }
+                }
+            }
+            
+            if (s.type !== "bridge") {
+                if (s.type === "chorus" || useChorusModelInOutro) {
+                    for (let i = 0; i < 16; i++) {
+                        const tickOffset = i * ticksPerBeat / 4;
+                        if (i === 12) {
+                            allEvents.push({ tick: startTick + tickOffset, type: 'note', channel: 9, note: 46, velocity: 85, duration: ticksPerBeat / 4 });
+                        } else {
+                            const isOffbeat = (i % 4 === 2);
+                            const hatVel = isOffbeat ? 78 : 50;
+                            allEvents.push({ tick: startTick + tickOffset, type: 'note', channel: 9, note: 42, velocity: hatVel, duration: ticksPerBeat / 8 });
+                        }
+                    }
+                } else if (s.type === "verse") {
+                    for (let i = 0; i < 8; i++) {
+                        allEvents.push({ tick: startTick + i * ticksPerBeat / 2, type: 'note', channel: 9, note: 42, velocity: 58, duration: ticksPerBeat / 8 });
+                    }
+                } else if (s.type === "pre-chorus") {
+                    for (let i = 0; i < 8; i++) {
+                        allEvents.push({ tick: startTick + i * ticksPerBeat / 2, type: 'note', channel: 9, note: 42, velocity: 62, duration: ticksPerBeat / 8 });
+                    }
+                }
+            }
+        }
+
+        if (s.type === "bridge" || (s.type === "outro" && !fadeOutChorus)) {
+            if (s.type === "outro" || bridgeStyle === "space_sweep" || bridgeStyle === "tension_builder") {
+                const soloEvents = generateSolo(scaleInfo, chordProg, s.bars, currentBeat, doubleChordDuration);
+                allEvents.push(...soloEvents);
+            }
+        }
+        
+        if (s.name === "outro" && fadeOutChorus) {
+            const outroStartTick = currentBeat * ticksPerBeat;
+            const outroTotalTicks = s.bars * 4 * ticksPerBeat;
+            const fadeSteps = 16;
+            for (let i = 0; i < fadeSteps; i++) {
+                const stepTick = outroStartTick + Math.floor((i / fadeSteps) * outroTotalTicks);
+                const volVal = Math.floor((1.0 - (i / fadeSteps)) * 127);
+                const activeChannels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+                activeChannels.forEach(ch => {
+                    allEvents.push({ tick: stepTick, type: 'cc', channel: ch, controller: 7, value: volVal });
+                });
+            }
+        }
+
+        currentBeat += s.bars * 4;
+    } // END of sections loop
+
+    if (!fadeOutChorus) {
+        const finalChordTick = currentBeat * ticksPerBeat;
+        const finalChordNotes = getDreamyVoiceLedChord(scaleInfo, chordProg[0], 4, prevChordNotes); 
+        
+        finalChordNotes.forEach(note => {
+            allEvents.push({
+                tick: finalChordTick,
+                type: 'note',
+                channel: 2, 
+                note: note,
+                velocity: 80,
+                duration: ticksPerBeat * 8 
+            });
+        });
+        
+        const finalFadeSteps = 24;
+        for (let i = 0; i <= finalFadeSteps; i++) {
+            const stepTick = finalChordTick + Math.floor((i / finalFadeSteps) * ticksPerBeat * 8);
+            const volVal = Math.floor((1.0 - (i / finalFadeSteps)) * 110);
+            allEvents.push({
+                tick: stepTick,
+                type: 'cc',
+                channel: 2,
+                controller: 7,
+                value: volVal
+            });
+        }
+    }
+
+    const sidechainEvents = [];
+    allEvents.forEach(ev => {
+        if (ev.type === 'note' && ev.channel === 9 && ev.note === 36) {
+            sidechainEvents.push({ tick: ev.tick, type: 'note', channel: 8, note: ev.note, velocity: ev.velocity, duration: ev.duration });
+        }
+    });
+    allEvents.push(...sidechainEvents);
+    allEvents.sort((a, b) => a.tick - b.tick);
+    
+    return {
+        name: `${getRandomItem(ADJECTIVES)} ${getRandomItem(NOUNS)}`,
+        frequency: getRandomFloat(87.5, 107.9).toFixed(1),
+        bpm: tempo,
+        swing: swingAmount,
+        chords: chordNames.join(" | "),
+        doubleChordDuration: doubleChordDuration,
+        bassPattern: defaultBassPatternName,
+        introType: introStyle.name,
+        bridgeStyle: bridgeStyle,
+        runPattern: runPattern.name,
+        arpStyle: arpStyle,
+        bassMode: bassMode,
+        hasClap: songHasClap,
+        drumsFirstIntro: drumsFirstIntro,
+        songHasStop: songHasStop,
+        fadeOutChorus: fadeOutChorus,
+        melodyType: melodyType,
+        melodyRhythm: melodyType === "rythmic" ? melodyRhythmName : "random",
+        outroBars: structure.outro,
+        useSynthPopBass: useSynthPopBass,
+        events: allEvents
+    };
+}
+
+// Globaalit vientikomennot ikkunakontekstiin radio.js:ää varten
+window.getRandomInt = getRandomInt;
+window.generateFullSong = generateFullSong;
