@@ -1289,7 +1289,7 @@ function generateFullSong() {
     }
     
     // Tempon ylärajaa nostettu nopeampia 80-luvun synth-pop-biisejä varten, alin säilytetty
-    const tempo = getRandomInt(88, 132);
+    const tempo = getRandomInt(88, 162);
     const defaultBassPatternName = getRandomItem(Object.keys(BASS_PATTERNS));
     const runPattern = getRandomItem(RUN_PATTERNS);
     const arpStyle = getRandomItem(["classic_up_down", "cyber_chase", "space_bounce", "neon_pulse", "retro_sweep", "driving_octaves"]);
