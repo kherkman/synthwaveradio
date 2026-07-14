@@ -1,3 +1,4 @@
+
 // composer.js - Synthwave Composition Engine
 
 // ── Sanastot ja tietorakenteet (Vocabularies & structures) ──────────────────────────
@@ -170,6 +171,19 @@ function getChordNotes(scaleInfo, chordRootOffset, octave) {
     ];
 }
 
+// Apufunktio synth pop -bassomelodian sävelten hakuun (Root=0, Third=2, Fifth=4)
+function getBassMelodyNote(scaleInfo, chordRootOffset, degreeType, octave) {
+    const scale = scaleInfo.scale;
+    const tonic = scaleInfo.tonic;
+    const rootIndex = chordRootOffset % 7;
+    const targetIndex = (rootIndex + degreeType) % 7;
+    
+    let octaveOffset = Math.floor((rootIndex + degreeType) / 7);
+    const pitchClass = (tonic + scale[targetIndex]) % 12;
+    
+    return pitchClass + ((octave + octaveOffset) * 12);
+}
+
 function getDreamyVoiceLedChord(scaleInfo, chordRootOffset, targetOctave, prevChordNotes) {
     const scale = scaleInfo.scale;
     const tonic = scaleInfo.tonic;
@@ -217,6 +231,69 @@ function getDreamyVoiceLedChord(scaleInfo, chordRootOffset, targetOctave, prevCh
     return notes;
 }
 
+// Generoi melodisen, synth pop -tyylisen bassokuvion soinnun perussävelestä, terssistä ja kvintistä
+function generateMelodicBass(scaleInfo, chordProg, totalBars, startBeat, sectionType, doubleChordDuration) {
+    const ticksPerBeat = 480;
+    const events = [];
+    
+    // Tyypillisiä dynaamisia synth pop -bassokuvioita (16-vaiheisia rytmi- ja sävelkuvioita)
+    const patterns = [
+        {
+            rhythm:  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            pitches: [0, 0, 0, 0, 2, 2, 2, 2, 4, 4, 4, 4, 2, 2, 2, 2] // R-R-R-R-3-3-3-3-5-5-5-5-3-3-3-3
+        },
+        {
+            rhythm:  [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1],
+            pitches: [0, 0, 0, 2, 2, 0, 4, 0, 4, 0, 2, 2, 0, 0, 0, 0] // Synkopoitu pop-kuvio
+        },
+        {
+            rhythm:  [1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+            pitches: [0, 0, 0, 2, 2, 2, 0, 4, 4, 4, 0, 2, 2, 2, 0, 0]
+        },
+        {
+            rhythm:  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            pitches: [0, 2, 4, 2, 0, 2, 4, 2, 0, 2, 4, 2, 0, 2, 4, 2] // Arpeggio-kuvio
+        },
+        {
+            rhythm:  [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            pitches: [0, 0, 2, 0, 4, 0, 2, 0, 0, 0, 2, 0, 4, 0, 2, 0] // Kahdeksasosapumppu
+        }
+    ];
+    
+    // Valitaan yksi yhtenäinen kuvio koko osiolle tyylipuhtaan toiston takaamiseksi
+    const chosenPattern = getRandomItem(patterns);
+    let baseVel = (sectionType === "chorus" || sectionType === "chorus2") ? 100 : (sectionType === "verse" ? 85 : 70);
+
+    for (let bar = 0; bar < totalBars; bar++) {
+        const barStartBeat = startBeat + (bar * 4);
+        const barStartTick = barStartBeat * ticksPerBeat;
+        
+        const chordIdx = Math.floor(barStartBeat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
+        const chordRoot = chordProg[chordIdx];
+        
+        for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+            if (chosenPattern.rhythm[sixteenth] === 1) {
+                const tick = barStartTick + (sixteenth * ticksPerBeat / 4);
+                const degreeType = chosenPattern.pitches[sixteenth]; // 0 (root), 2 (third) tai 4 (fifth)
+                
+                // Matalampi rekisteri (oktaavit 2-3) takaa tukevan mutta melodisen pohjan
+                const midiNote = getBassMelodyNote(scaleInfo, chordRoot, degreeType, 2);
+                const durationTicks = (ticksPerBeat / 4) * 0.85;
+                
+                events.push({
+                    tick,
+                    type: 'note',
+                    channel: 1, // Classic bassokanava
+                    note: midiNote,
+                    velocity: baseVel + getRandomInt(-4, 4),
+                    duration: durationTicks
+                });
+            }
+        }
+    }
+    return events;
+}
+
 function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType, melodyType = "random", melodyRhythmName = "driving", doubleChordDuration = false) {
     const ticksPerBeat = 480;
     const events = [];
@@ -243,25 +320,40 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
 
     const allowedSteps = [1, -1, 2, -2, 3, -3, -4, 0];  
 
-    // 70% todennäköisyys uudelle sointusidonnaiselle motiivi/kysymys-vastaus-algoritmille
-    const useSointuMotiivi = Math.random() < 0.70;
+    const roll = Math.random();
+    const useSointuMotiivi = roll < 0.96;
+    const isRhythmicFallback = !useSointuMotiivi && (roll < 0.98);
 
     if (useSointuMotiivi) {
-        const allowedDegrees = [8, 10, 12, 13, 14];
+        const allowedDegrees = [8, 10, 11, 12, 13, 14];
         const pattern = MELODY_RHYTHMS[melodyRhythmName] || MELODY_RHYTHMS["driving"];
-        
-        // Tahti 1: A, Kysymys (arvotaan vapaasti rytmikuva ja sävelet)
+        const activePattern = pattern.map(step => (step === 1 && Math.random() < 0.01) ? 0 : step);
+
         const pitchesQ = Array(8).fill(null);
+        let runCounter = 0;
+        let runStep = 1;
+        let currentRunIdx = 0;
+
         for (let s = 0; s < 8; s++) {
-            if (pattern[s] === 1) {
-                pitchesQ[s] = getRandomItem(allowedDegrees);
+            if (activePattern[s] === 1) {
+                if (runCounter > 0) {
+                    currentRunIdx = Math.max(0, Math.min(allowedDegrees.length - 1, currentRunIdx + runStep));
+                    pitchesQ[s] = allowedDegrees[currentRunIdx];
+                    runCounter--;
+                } else if (Math.random() < 0.40) {
+                    runCounter = 2;
+                    runStep = Math.random() > 0.5 ? 1 : -1;
+                    currentRunIdx = getRandomInt(0, allowedDegrees.length - 1);
+                    pitchesQ[s] = allowedDegrees[currentRunIdx];
+                } else {
+                    pitchesQ[s] = getRandomItem(allowedDegrees);
+                }
             }
         }
 
-        // Tahti 2: A', Vastaus (käytetään samaa rytmiä, mutta siirretään säveliä askel ylös tai alas)
         const pitchesAns = Array(8).fill(null);
         for (let s = 0; s < 8; s++) {
-            if (pattern[s] === 1) {
+            if (activePattern[s] === 1 && pitchesQ[s] !== null) {
                 const idx = allowedDegrees.indexOf(pitchesQ[s]);
                 const shift = Math.random() > 0.5 ? 1 : -1;
                 const newIdx = Math.max(0, Math.min(allowedDegrees.length - 1, idx + shift));
@@ -269,40 +361,73 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
             }
         }
 
-        // Tahti 3: A, Kertaus (toistetaan ensimmäinen kysymys)
         const pitchesRep = pitchesQ.slice();
 
-        // Tahti 4: B, Ratkaisu (yksinkertaistettu rytmi, joka päättyy vakaaseen säveleeseen 8, 12 tai 15)
         const rhythmB = MELODY_RHYTHMS["minimal"] || [1, 0, 0, 0, 1, 0, 0, 0];
+        const activeRhythmB = rhythmB.map(step => (step === 1 && Math.random() < 0.01) ? 0 : step);
         const pitchesB = Array(8).fill(null);
         
         let lastActiveIdx = -1;
+        const activeIndicesB = [];
         for (let s = 0; s < 8; s++) {
-            if (rhythmB[s] === 1) {
+            if (activeRhythmB[s] === 1) {
+                activeIndicesB.push(s);
                 lastActiveIdx = s;
             }
         }
+
         for (let s = 0; s < 8; s++) {
-            if (rhythmB[s] === 1) {
-                if (s === lastActiveIdx) {
-                    pitchesB[s] = getRandomItem([8, 12, 15]);
-                } else {
-                    pitchesB[s] = getRandomItem(allowedDegrees);
-                }
+            if (activeRhythmB[s] === 1) {
+                pitchesB[s] = getRandomItem(allowedDegrees);
             }
         }
 
-        // Muodostetaan sävelet 4 tahdin fraaseiksi
+        const isChorus = (sectionType === "chorus" || sectionType === "chorus2");
+        const useChorusOctaveFifth = isChorus && (Math.random() < 0.30);
+
+        if (useChorusOctaveFifth) {
+            const activeIndicesQ = [];
+            for (let s = 0; s < 8; s++) {
+                if (activePattern[s] === 1) activeIndicesQ.push(s);
+            }
+            if (activeIndicesQ.length >= 2) {
+                pitchesQ[activeIndicesQ[0]] = 15;
+                pitchesQ[activeIndicesQ[1]] = 12;
+                
+                pitchesAns[activeIndicesQ[0]] = 14; 
+                pitchesAns[activeIndicesQ[1]] = 11;
+                pitchesRep[activeIndicesQ[0]] = 15;
+                pitchesRep[activeIndicesQ[1]] = 12;
+            }
+            if (activeIndicesB.length >= 2) {
+                pitchesB[activeIndicesB[activeIndicesB.length - 2]] = 15;
+                pitchesB[activeIndicesB[activeIndicesB.length - 1]] = 12;
+            }
+        } else {
+            const useEndRun = Math.random() < 0.30;
+            if (useEndRun && activeIndicesB.length >= 3) {
+                const len = activeIndicesB.length;
+                pitchesB[activeIndicesB[len - 3]] = 15;
+                pitchesB[activeIndicesB[len - 2]] = 13;
+                pitchesB[activeIndicesB[len - 1]] = 12;
+            }
+        }
+
+        if (lastActiveIdx !== -1 && !useChorusOctaveFifth && !(Math.random() < 0.30 && activeIndicesB.length >= 3)) {
+            pitchesB[lastActiveIdx] = getRandomItem([8, 12, 15]);
+        } else if (lastActiveIdx !== -1 && pitchesB[lastActiveIdx] === null) {
+            pitchesB[lastActiveIdx] = getRandomItem([8, 12, 15]);
+        }
+
         for (let barOfPhrase = 0; barOfPhrase < phraseBars; barOfPhrase++) {
             let rArr, pArr;
-            if (barOfPhrase === 0) { rArr = pattern; pArr = pitchesQ; }
-            else if (barOfPhrase === 1) { rArr = pattern; pArr = pitchesAns; }
-            else if (barOfPhrase === 2) { rArr = pattern; pArr = pitchesRep; }
-            else { rArr = rhythmB; pArr = pitchesB; }
+            if (barOfPhrase === 0) { rArr = activePattern; pArr = pitchesQ; }
+            else if (barOfPhrase === 1) { rArr = activePattern; pArr = pitchesAns; }
+            else if (barOfPhrase === 2) { rArr = activePattern; pArr = pitchesRep; }
+            else { rArr = activeRhythmB; pArr = pitchesB; }
 
             for (let s = 0; s < 8; s++) {
-                if (rArr[s] === 1) {
-                    // Lasketaan nuotin pito seuraavaan askeleeseen asti
+                if (rArr[s] === 1 && pArr[s] !== null) {
                     let nextActiveStep = 8;
                     for (let next = s + 1; next < 8; next++) {
                         if (rArr[next] === 1) {
@@ -314,7 +439,6 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
                     const stepBeatInBar = s * stepDurationBeats;
                     const relativeBeat = (barOfPhrase * 4) + stepBeatInBar;
 
-                    // Määritetään sointu kulloisenkin iskun mukaan
                     const absBeat = startBeat + relativeBeat;
                     const chordIdx = Math.floor(absBeat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
                     const currentChordRoot = chordProg[chordIdx] || 0;
@@ -322,10 +446,10 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
                     const degree = pArr[s];
                     let baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
                     
-                    // Sointusidonnainen sävelkorkeus pääsävellajin asteikolla
-                    let midiNote = getMidiFromScaleIndex(currentChordRoot + (degree - 8), baseOctave);
+                    const noteOctave = (degree === 11) ? (baseOctave + 1) : baseOctave;
+                    let midiNote = getMidiFromScaleIndex(currentChordRoot + (degree - 8), noteOctave);
 
-                    while (midiNote > 74) midiNote -= 12;
+                    while (midiNote > 84) midiNote -= 12;
                     while (midiNote < 48) midiNote += 12;
 
                     let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
@@ -341,8 +465,7 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
             }
         }
     } else {
-        // Alkuperäinen 30% todennäköisyysluokka (Rhythmic tai Random)
-        if (melodyType === "rythmic") {
+        if (isRhythmicFallback) {
             let currentScaleDegree = chordProg[0] || 0;
             
             for (let bar = 0; bar < phraseBars; bar++) {
@@ -355,8 +478,7 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
                 }
                 
                 for (let i = 0; i < activeSteps.length; i++) {
-
-                    if (Math.random() < 0.05) {
+                    if (Math.random() < 0.01) {
                         continue;
                     }
 
@@ -412,7 +534,7 @@ function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType,
                     duration = maxBeats - beat;
                 }
                 
-                const isRest = Math.random() < 0.25;
+                const isRest = Math.random() < 0.01;
                 
                 if (isRest) {
                     beat += duration;
@@ -1166,6 +1288,16 @@ function generateFullSong() {
     let savedChorusStartBeat = 0;
     let savedPreChorusStartBeat = 0;
     
+    // 50 % todennäköisyys melodiselle synth pop -bassokuviolle (perussävel, terssi, kvintti)
+    const useSynthPopBass = Math.random() < 0.50;
+
+    let savedVerseBass = null;
+    let savedChorusBass = null;
+    let savedPreChorusBass = null;
+    let savedVerseBassStartBeat = 0;
+    let savedChorusBassStartBeat = 0;
+    let savedPreChorusBassStartBeat = 0;
+
     const selectedStructure = getRandomItem(SONG_STRUCTURES);
     const structureType = selectedStructure.name;
 
@@ -1342,6 +1474,56 @@ function generateFullSong() {
             allEvents.push(...sectionMelody);
         }
 
+        // Melodisen synth pop -bassokuvion generointi ja toistaminen vastaavissa laulurakenteissa
+        let sectionBassEvents = [];
+        const isMelodicSection = (s.type === "verse" || s.type === "pre-chorus" || s.type === "chorus") || (s.name === "outro" && fadeOutChorus);
+        
+        if (useSynthPopBass && isMelodicSection) {
+            if (s.type === "verse") {
+                if (!savedVerseBass) {
+                    savedVerseBass = generateMelodicBass(scaleInfo, chordProg, s.bars, currentBeat, s.type, doubleChordDuration);
+                    savedVerseBassStartBeat = currentBeat;
+                    sectionBassEvents = savedVerseBass;
+                } else {
+                    const beatDiff = currentBeat - savedVerseBassStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionBassEvents = savedVerseBass.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            else if (s.type === "pre-chorus") {
+                if (!savedPreChorusBass) {
+                    savedPreChorusBass = generateMelodicBass(scaleInfo, chordProg, s.bars, currentBeat, s.type, doubleChordDuration);
+                    savedPreChorusBassStartBeat = currentBeat;
+                    sectionBassEvents = savedPreChorusBass;
+                } else {
+                    const beatDiff = currentBeat - savedPreChorusBassStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionBassEvents = savedPreChorusBass.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            else if (s.type === "chorus" || (s.name === "outro" && fadeOutChorus)) {
+                if (!savedChorusBass) {
+                    savedChorusBass = generateMelodicBass(scaleInfo, chordProg, s.bars, currentBeat, "chorus", doubleChordDuration);
+                    savedChorusBassStartBeat = currentBeat;
+                    sectionBassEvents = savedChorusBass;
+                } else {
+                    const beatDiff = currentBeat - savedChorusBassStartBeat;
+                    const tickDiff = beatDiff * ticksPerBeat;
+                    sectionBassEvents = savedChorusBass.map(ev => ({
+                        ...ev,
+                        tick: ev.tick + tickDiff
+                    }));
+                }
+            }
+            allEvents.push(...sectionBassEvents);
+        }
+
         let currentBassPattern = BASS_PATTERNS[defaultBassPatternName];
         if (s.type === "chorus" || useChorusModelInOutro) {
             currentBassPattern = BASS_PATTERNS["sixteenth"];
@@ -1439,34 +1621,39 @@ function generateFullSong() {
                     }
                 });
                 
-                const bassNoteLow = chordNotes[0] - 12;
-                const bassNoteHigh = chordNotes[0];
-                
-                if (bassMode === "split") {
-                    const subDuration = applyStop ? (ticksPerBeat * 0.8) : (ticksPerBeat * 3.8);
-                    allEvents.push({ tick: startTick, type: 'note', channel: 10, note: bassNoteLow, velocity: 105, duration: subDuration });
+                // Ohitetaan standardi bassokuvio mikäli uusi synth pop -bassomelodia on päällä
+                const skipStandardBass = useSynthPopBass && (s.type === "verse" || s.type === "pre-chorus" || s.type === "chorus");
 
-                    for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
-                        if (applyStop && sixteenth >= 4) continue;
-                        const patternPos = Math.floor(sixteenth / 4);
-                        if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
-                            const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
-                            let bassVel = (s.type === "chorus" || useChorusModelInOutro) ? 95 : (s.type === "verse" ? 80 : 65);
-                            const isOffbeat = (sixteenth % 2 === 1);
-                            const activeBassNote = isOffbeat ? chordNotes[0] : bassNoteHigh;
-                            allEvents.push({ tick: bassTick, type: 'note', channel: 7, note: activeBassNote, velocity: isOffbeat ? Math.floor(bassVel * 0.8) : bassVel, duration: ticksPerBeat / 6 });
+                if (!skipStandardBass) {
+                    const bassNoteLow = chordNotes[0] - 12;
+                    const bassNoteHigh = chordNotes[0];
+                    
+                    if (bassMode === "split") {
+                        const subDuration = applyStop ? (ticksPerBeat * 0.8) : (ticksPerBeat * 3.8);
+                        allEvents.push({ tick: startTick, type: 'note', channel: 10, note: bassNoteLow, velocity: 105, duration: subDuration });
+
+                        for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+                            if (applyStop && sixteenth >= 4) continue;
+                            const patternPos = Math.floor(sixteenth / 4);
+                            if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
+                                const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
+                                let bassVel = (s.type === "chorus" || useChorusModelInOutro) ? 95 : (s.type === "verse" ? 80 : 65);
+                                const isOffbeat = (sixteenth % 2 === 1);
+                                const activeBassNote = isOffbeat ? chordNotes[0] : bassNoteHigh;
+                                allEvents.push({ tick: bassTick, type: 'note', channel: 7, note: activeBassNote, velocity: isOffbeat ? Math.floor(bassVel * 0.8) : bassVel, duration: ticksPerBeat / 6 });
+                            }
                         }
-                    }
-                } else {
-                    for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
-                        if (applyStop && sixteenth >= 4) continue;
-                        const patternPos = Math.floor(sixteenth / 4);
-                        if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
-                            const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
-                            let bassVel = (s.type === "chorus" || useChorusModelInOutro) ? 100 : (s.type === "verse" ? 85 : 70);
-                            const isOffbeat = (sixteenth % 2 === 1);
-                            const activeBassNote = (isOffbeat && (s.type === "chorus" || useChorusModelInOutro)) ? bassNoteHigh : bassNoteLow;
-                            allEvents.push({ tick: bassTick, type: 'note', channel: 1, note: activeBassNote, velocity: isOffbeat ? Math.floor(bassVel * 0.8) : bassVel, duration: ticksPerBeat / 6 });
+                    } else {
+                        for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+                            if (applyStop && sixteenth >= 4) continue;
+                            const patternPos = Math.floor(sixteenth / 4);
+                            if (currentBassPattern[patternPos % currentBassPattern.length] === 1) {
+                                const bassTick = startTick + (sixteenth * ticksPerBeat / 4);
+                                let bassVel = (s.type === "chorus" || useChorusModelInOutro) ? 100 : (s.type === "verse" ? 85 : 70);
+                                const isOffbeat = (sixteenth % 2 === 1);
+                                const activeBassNote = (isOffbeat && (s.type === "chorus" || useChorusModelInOutro)) ? bassNoteHigh : bassNoteLow;
+                                allEvents.push({ tick: bassTick, type: 'note', channel: 1, note: activeBassNote, velocity: isOffbeat ? Math.floor(bassVel * 0.8) : bassVel, duration: ticksPerBeat / 6 });
+                            }
                         }
                     }
                 }
@@ -1570,7 +1757,7 @@ function generateFullSong() {
                     for (let f = 0; f < 4; f++) {
                         const subTick = fillTick + (f * ticksPerBeat / 4);
                         const rollVel = Math.floor((70 + (f * 15)) * intensity);
-                        allEvents.push({ tick: subTick, type: 'note', channel: 9, note: 38, velocity: rollVel, duration: ticksPerBeat / 8 });
+                        allEvents.push({ subTick, type: 'note', channel: 9, note: 38, velocity: rollVel, duration: ticksPerBeat / 8 });
                     }
                 }
             }
@@ -1681,10 +1868,755 @@ function generateFullSong() {
         melodyType: melodyType,
         melodyRhythm: melodyType === "rythmic" ? melodyRhythmName : "random",
         outroBars: structure.outro,
+        useSynthPopBass: useSynthPopBass,
         events: allEvents
     };
 }
 
-// Expose main entry point composition function and shared helpers to global window scope
-window.getRandomInt = getRandomInt;
-window.generateFullSong = generateFullSong;
+function generateMelody(scaleInfo, chordProg, totalBars, startBeat, sectionType, melodyType = "random", melodyRhythmName = "driving", doubleChordDuration = false) {
+    const ticksPerBeat = 480;
+    const events = [];
+    if (sectionType === "intro" || sectionType === "bridge") return events;
+
+    const tonic = scaleInfo.tonic;
+    const scaleOffsets = scaleInfo.scale;
+
+    function getMidiFromScaleIndex(scaleIndex, oct) {
+        const len = scaleOffsets.length;
+        let normalizedIndex = scaleIndex % len;
+        let octaveOffset = Math.floor(scaleIndex / len);
+        if (normalizedIndex < 0) {
+            normalizedIndex += len;
+            octaveOffset -= 1;
+        }
+        return tonic + scaleOffsets[normalizedIndex] + (oct + octaveOffset) * 12;
+    }
+
+    const phraseBars = 4;
+    const numPhrases = Math.ceil(totalBars / phraseBars);
+    const phraseEvents = [];
+    const stepDurationBeats = 0.5;
+
+    const allowedSteps = [1, -1, 2, -2, 3, -3, -4, 0];  
+
+    const roll = Math.random();
+    const useSointuMotiivi = roll < 0.96;
+    const isRhythmicFallback = !useSointuMotiivi && (roll < 0.98);
+
+    if (useSointuMotiivi) {
+        const allowedDegrees = [8, 10, 11, 12, 13, 14];
+        const pattern = MELODY_RHYTHMS[melodyRhythmName] || MELODY_RHYTHMS["driving"];
+        const activePattern = pattern.map(step => (step === 1 && Math.random() < 0.01) ? 0 : step);
+
+        const pitchesQ = Array(8).fill(null);
+        let runCounter = 0;
+        let runStep = 1;
+        let currentRunIdx = 0;
+
+        for (let s = 0; s < 8; s++) {
+            if (activePattern[s] === 1) {
+                if (runCounter > 0) {
+                    currentRunIdx = Math.max(0, Math.min(allowedDegrees.length - 1, currentRunIdx + runStep));
+                    pitchesQ[s] = allowedDegrees[currentRunIdx];
+                    runCounter--;
+                } else if (Math.random() < 0.40) {
+                    runCounter = 2;
+                    runStep = Math.random() > 0.5 ? 1 : -1;
+                    currentRunIdx = getRandomInt(0, allowedDegrees.length - 1);
+                    pitchesQ[s] = allowedDegrees[currentRunIdx];
+                } else {
+                    pitchesQ[s] = getRandomItem(allowedDegrees);
+                }
+            }
+        }
+
+        const pitchesAns = Array(8).fill(null);
+        for (let s = 0; s < 8; s++) {
+            if (activePattern[s] === 1 && pitchesQ[s] !== null) {
+                const idx = allowedDegrees.indexOf(pitchesQ[s]);
+                const shift = Math.random() > 0.5 ? 1 : -1;
+                const newIdx = Math.max(0, Math.min(allowedDegrees.length - 1, idx + shift));
+                pitchesAns[s] = allowedDegrees[newIdx];
+            }
+        }
+
+        const pitchesRep = pitchesQ.slice();
+
+        const rhythmB = MELODY_RHYTHMS["minimal"] || [1, 0, 0, 0, 1, 0, 0, 0];
+        const activeRhythmB = rhythmB.map(step => (step === 1 && Math.random() < 0.01) ? 0 : step);
+        const pitchesB = Array(8).fill(null);
+        
+        let lastActiveIdx = -1;
+        const activeIndicesB = [];
+        for (let s = 0; s < 8; s++) {
+            if (activeRhythmB[s] === 1) {
+                activeIndicesB.push(s);
+                lastActiveIdx = s;
+            }
+        }
+
+        for (let s = 0; s < 8; s++) {
+            if (activeRhythmB[s] === 1) {
+                pitchesB[s] = getRandomItem(allowedDegrees);
+            }
+        }
+
+        const isChorus = (sectionType === "chorus" || sectionType === "chorus2");
+        const useChorusOctaveFifth = isChorus && (Math.random() < 0.30);
+
+        if (useChorusOctaveFifth) {
+            const activeIndicesQ = [];
+            for (let s = 0; s < 8; s++) {
+                if (activePattern[s] === 1) activeIndicesQ.push(s);
+            }
+            if (activeIndicesQ.length >= 2) {
+                pitchesQ[activeIndicesQ[0]] = 15;
+                pitchesQ[activeIndicesQ[1]] = 12;
+                
+                pitchesAns[activeIndicesQ[0]] = 14; 
+                pitchesAns[activeIndicesQ[1]] = 11;
+                pitchesRep[activeIndicesQ[0]] = 15;
+                pitchesRep[activeIndicesQ[1]] = 12;
+            }
+            if (activeIndicesB.length >= 2) {
+                pitchesB[activeIndicesB[activeIndicesB.length - 2]] = 15;
+                pitchesB[activeIndicesB[activeIndicesB.length - 1]] = 12;
+            }
+        } else {
+            const useEndRun = Math.random() < 0.30;
+            if (useEndRun && activeIndicesB.length >= 3) {
+                const len = activeIndicesB.length;
+                pitchesB[activeIndicesB[len - 3]] = 15;
+                pitchesB[activeIndicesB[len - 2]] = 13;
+                pitchesB[activeIndicesB[len - 1]] = 12;
+            }
+        }
+
+        if (lastActiveIdx !== -1 && !useChorusOctaveFifth && !(Math.random() < 0.30 && activeIndicesB.length >= 3)) {
+            pitchesB[lastActiveIdx] = getRandomItem([8, 12, 15]);
+        } else if (lastActiveIdx !== -1 && pitchesB[lastActiveIdx] === null) {
+            pitchesB[lastActiveIdx] = getRandomItem([8, 12, 15]);
+        }
+
+        for (let barOfPhrase = 0; barOfPhrase < phraseBars; barOfPhrase++) {
+            let rArr, pArr;
+            if (barOfPhrase === 0) { rArr = activePattern; pArr = pitchesQ; }
+            else if (barOfPhrase === 1) { rArr = activePattern; pArr = pitchesAns; }
+            else if (barOfPhrase === 2) { rArr = activePattern; pArr = pitchesRep; }
+            else { rArr = activeRhythmB; pArr = pitchesB; }
+
+            for (let s = 0; s < 8; s++) {
+                if (rArr[s] === 1 && pArr[s] !== null) {
+                    let nextActiveStep = 8;
+                    for (let next = s + 1; next < 8; next++) {
+                        if (rArr[next] === 1) {
+                            nextActiveStep = next;
+                            break;
+                        }
+                    }
+                    const durationBeats = (nextActiveStep - s) * stepDurationBeats;
+                    const stepBeatInBar = s * stepDurationBeats;
+                    const relativeBeat = (barOfPhrase * 4) + stepBeatInBar;
+
+                    const absBeat = startBeat + relativeBeat;
+                    const chordIdx = Math.floor(absBeat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
+                    const currentChordRoot = chordProg[chordIdx] || 0;
+
+                    const degree = pArr[s];
+                    let baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
+                    
+                    const noteOctave = (degree === 11) ? (baseOctave + 1) : baseOctave;
+                    let midiNote = getMidiFromScaleIndex(currentChordRoot + (degree - 8), noteOctave);
+
+                    while (midiNote > 84) midiNote -= 12;
+                    while (midiNote < 48) midiNote += 12;
+
+                    let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
+                    velocity += getRandomInt(-5, 5);
+
+                    phraseEvents.push({
+                        beatOffset: relativeBeat,
+                        note: midiNote,
+                        velocity: velocity,
+                        durationBeats: durationBeats
+                    });
+                }
+            }
+        }
+    } else {
+        if (isRhythmicFallback) {
+            let currentScaleDegree = chordProg[0] || 0;
+            
+            for (let bar = 0; bar < phraseBars; bar++) {
+                const randomRhythmName = getRandomItem(Object.keys(MELODY_RHYTHMS));
+                const pattern = MELODY_RHYTHMS[randomRhythmName] || MELODY_RHYTHMS["driving"];
+                
+                const activeSteps = [];
+                for (let i = 0; i < pattern.length; i++) {
+                    if (pattern[i] === 1) activeSteps.push(i);
+                }
+                
+                for (let i = 0; i < activeSteps.length; i++) {
+                    if (Math.random() < 0.01) {
+                        continue;
+                    }
+
+                    const stepIdx = activeSteps[i];
+                    const nextStepIdx = (i + 1 < activeSteps.length) ? activeSteps[i + 1] : pattern.length;
+                    const durationBeats = (nextStepIdx - stepIdx) * stepDurationBeats;
+                    
+                    const stepBeatInBar = stepIdx * stepDurationBeats;
+                    const relativeBeat = (bar * 4) + stepBeatInBar;
+                    
+                    const step = getRandomItem(allowedSteps);
+                    currentScaleDegree += step;
+                    if (currentScaleDegree < 0) currentScaleDegree += 7;
+                    if (currentScaleDegree > 14) currentScaleDegree -= 7;
+                    
+                    let baseOctave = 4;
+                    if (sectionType === "chorus" || sectionType === "chorus2") {
+                        baseOctave = 5;
+                    } else if (sectionType === "verse" || sectionType === "verse2" || sectionType === "pre-chorus" || sectionType === "pre-chorus2") {
+                        baseOctave = 4;
+                    }
+                    
+                    let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
+
+                    while (midiNote > 74) {
+                        midiNote -= 12;
+                    }
+                    while (midiNote < 48) {
+                        midiNote += 12;
+                    }
+
+                    const cappedNote = midiNote;
+                    
+                    let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
+                    velocity += getRandomInt(-5, 5);
+                    
+                    phraseEvents.push({
+                        beatOffset: relativeBeat,
+                        note: cappedNote,
+                        velocity: velocity,
+                        durationBeats: durationBeats
+                    });
+                }
+            }
+        } else {
+            let currentScaleDegree = chordProg[0] || 0;
+            let beat = 0;
+            const maxBeats = phraseBars * 4; 
+            
+            while (beat < maxBeats) {
+                let duration = getRandomItem([1.0, 1.5, 2.0, 3.0, 4.0, 6.0]);
+                if (beat + duration > maxBeats) {
+                    duration = maxBeats - beat;
+                }
+                
+                const isRest = Math.random() < 0.01;
+                
+                if (isRest) {
+                    beat += duration;
+                    continue;
+                }
+                
+                const step = getRandomItem(allowedSteps);
+                currentScaleDegree += step;
+
+                const chordIdx = Math.floor(beat / (doubleChordDuration ? 8 : 4)) % chordProg.length;
+                const currentChordRoot = chordProg[chordIdx];
+                currentScaleDegree = (currentChordRoot + (currentScaleDegree % 7)) % 7;
+                
+                const baseOctave = (sectionType === "chorus" || sectionType === "chorus2") ? 5 : 4;
+                let midiNote = getMidiFromScaleIndex(currentScaleDegree, baseOctave);
+                
+                while (midiNote > 74) midiNote -= 12;
+                while (midiNote < 48) midiNote += 12;
+                
+                let velocity = (sectionType === "chorus" || sectionType === "chorus2") ? 95 : 82;
+                velocity += getRandomInt(-5, 5);
+                
+                phraseEvents.push({
+                    beatOffset: beat,
+                    note: midiNote,
+                    velocity: velocity,
+                    durationBeats: duration
+                });
+                
+                beat += duration;
+            }
+        }
+    }
+    
+    for (let p = 0; p < numPhrases; p++) {
+        const phraseStartBeat = startBeat + (p * phraseBars * 4);
+        phraseEvents.forEach(pe => {
+            const absoluteBeat = phraseStartBeat + pe.beatOffset;
+            const tick = absoluteBeat * ticksPerBeat;
+            const durationTicks = pe.durationBeats * ticksPerBeat - 10;
+            
+            if (absoluteBeat < startBeat + totalBars * 4) {
+                events.push({
+                    tick,
+                    type: 'note',
+                    channel: 4, 
+                    note: pe.note,
+                    velocity: pe.velocity,
+                    duration: durationTicks
+                });
+            }
+        });
+    }
+
+    return events;
+}
+
+function generateSolo(scaleInfo, chordProg, totalBars, startBeat, doubleChordDuration = false) {
+    const ticksPerBeat = 480;
+    const events = [];
+    const tonic = scaleInfo.tonic;
+    const scaleOffsets = scaleInfo.scale;
+
+    function getMidi(scaleIndex, oct) {
+        const len = scaleOffsets.length;
+        let norm = scaleIndex % len;
+        let octOff = Math.floor(scaleIndex / len);
+        if (norm < 0) { norm += len; octOff -= 1; }
+        return tonic + scaleOffsets[norm] + (oct + octOff) * 12;
+    }
+
+    let beat = 0;
+    const maxBeats = totalBars * 4;
+    const divisor = doubleChordDuration ? 8 : 4;
+
+    let motifNotes = null;
+
+    while (beat < maxBeats) {
+        const chordIdx = Math.floor(beat / divisor) % chordProg.length;
+        const currentChordRoot = chordProg[chordIdx];
+
+        const phraseType = getRandomItem(["lyrical_theme", "motif_sequence", "expressive_bend", "melodic_run", "rest"]);
+
+        if (phraseType === "expressive_bend") {
+            const durationBeats = getRandomItem([2.0, 3.0]);
+            if (beat + durationBeats > maxBeats) break;
+
+            const tick = (startBeat + beat) * ticksPerBeat;
+            const durationTicks = durationBeats * ticksPerBeat - 10;
+
+            const degree = getRandomItem([0, 2, 4]); 
+            const note = getMidi(currentChordRoot + degree, 5); 
+
+            let targetNote = note; 
+            while (targetNote > 74) {
+                targetNote -= 12;
+            }
+            while (targetNote < 48) {
+                targetNote += 12;
+            }
+            const cappedNote = targetNote;
+
+            events.push({
+                tick,
+                type: 'note',
+                channel: 6, 
+                note: cappedNote,
+                velocity: 98,
+                duration: durationTicks
+            });
+
+            const note1 = getMidi(currentChordRoot + degree, 5);
+            const note2 = getMidi(currentChordRoot + degree + 1, 5);
+            const semitonesUp = Math.min(2, Math.max(1, note2 - note1)); 
+
+            const targetBend = 8192 + (semitonesUp * 4096);
+            const cappedBend = Math.min(16383, targetBend);
+
+            events.push({ tick: tick, type: 'pitch', channel: 6, value: 8192 });
+            events.push({ tick: tick + durationTicks * 0.1, type: 'pitch', channel: 6, value: 8192 });
+            events.push({ tick: tick + durationTicks * 0.35, type: 'pitch', channel: 6, value: cappedBend }); 
+            events.push({ tick: tick + durationTicks * 0.65, type: 'pitch', channel: 6, value: cappedBend });  
+            events.push({ tick: tick + durationTicks * 0.85, type: 'pitch', channel: 6, value: 8192 });  
+            events.push({ tick: tick + durationTicks - 5, type: 'pitch', channel: 6, value: 8192 }); 
+
+            events.push({ tick: tick, type: 'cc', channel: 6, controller: 1, value: 0 });
+            events.push({ tick: tick + durationTicks * 0.4, type: 'cc', channel: 6, controller: 1, value: 15 });
+            events.push({ tick: tick + durationTicks * 0.6, type: 'cc', channel: 6, controller: 1, value: 45 });
+            events.push({ tick: tick + durationTicks * 0.8, type: 'cc', channel: 6, controller: 1, value: 85 });
+            events.push({ tick: tick + durationTicks - 5, type: 'cc', channel: 6, controller: 1, value: 0 });
+
+            const steps = 6;
+            for (let s = 0; s <= steps; s++) {
+                const stepTick = tick + Math.floor((s / steps) * durationTicks * 0.85);
+                const crescVal = 50 + Math.floor((s / steps) * 77);
+                events.push({ tick: stepTick, type: 'cc', channel: 6, controller: 11, value: crescVal });
+            }
+            events.push({ tick: tick + durationTicks - 5, type: 'cc', channel: 11, controller: 11, value: 127 });
+
+            beat += durationBeats;
+
+        } else if (phraseType === "lyrical_theme") {
+            const durationBeats = 4.0;
+            if (beat + durationBeats > maxBeats) break;
+
+            const startTick = (startBeat + beat) * ticksPerBeat;
+            const degrees = [0, 1, 2, 4]; 
+            const rhythmPatterns = [
+                [1.0, 1.0, 1.0, 1.0],
+                [1.5, 0.5, 1.0, 1.0],
+                [0.75, 0.75, 1.5, 1.0],
+                [1.0, 0.5, 0.5, 2.0]
+            ];
+            const rhythm = getRandomItem(rhythmPatterns);
+            
+            let currentTick = startTick;
+            for (let i = 0; i < 4; i++) {
+                const note = getMidi(currentChordRoot + degrees[i], 5);
+                let targetNote = note;
+                while (targetNote > 74) targetNote -= 12;
+                while (targetNote < 48) targetNote += 12;
+
+                const noteDurTicks = rhythm[i] * ticksPerBeat - 10;
+                events.push({
+                    tick: currentTick,
+                    type: 'note',
+                    channel: 6,
+                    note: targetNote,
+                    velocity: 90 + getRandomInt(-4, 4),
+                    duration: noteDurTicks
+                });
+                
+                if (i === 3) {
+                    events.push({ tick: currentTick, type: 'cc', channel: 6, controller: 1, value: 10 });
+                    events.push({ tick: currentTick + noteDurTicks * 0.4, type: 'cc', channel: 6, controller: 1, value: 65 });
+                    events.push({ tick: currentTick + noteDurTicks - 5, type: 'cc', channel: 6, controller: 1, value: 0 });
+                }
+                
+                currentTick += rhythm[i] * ticksPerBeat;
+            }
+            beat += durationBeats;
+
+        } else if (phraseType === "motif_sequence") {
+            const durationBeats = 4.0;
+            if (beat + durationBeats > maxBeats) break;
+
+            const startTick = (startBeat + beat) * ticksPerBeat;
+            
+            if (!motifNotes) {
+                motifNotes = [
+                    getRandomItem([0, 2, 4]),
+                    getRandomItem([1, 3, 5]),
+                    getRandomItem([2, 4, 6])
+                ];
+            }
+            
+            const rhythm = [0.5, 0.5, 1.0]; 
+            let currentTick = startTick;
+            
+            for (let repeat = 0; repeat < 2; repeat++) {
+                for (let i = 0; i < 3; i++) {
+                    const note = getMidi(currentChordRoot + motifNotes[i] + (repeat * 2), 5); 
+                    let targetNote = note;
+                    while (targetNote > 74) targetNote -= 12;
+                    while (targetNote < 48) targetNote += 12;
+
+                    events.push({
+                        tick: currentTick,
+                        type: 'note',
+                        channel: 6,
+                        note: targetNote,
+                        velocity: 88,
+                        duration: (rhythm[i] * ticksPerBeat) - 10
+                    });
+                    currentTick += rhythm[i] * ticksPerBeat;
+                }
+            }
+            
+            beat += durationBeats;
+
+        } else if (phraseType === "melodic_run") {
+            const runBeats = 2.0;
+            if (beat + runBeats > maxBeats) break;
+
+            const startTick = (startBeat + beat) * ticksPerBeat;
+            
+            const patternType = getRandomItem(["pentatonic_up", "wave_contour", "triad_skip"]);
+            let scaleDegrees = [0, 1, 2, 4, 5, 6, 7, 9];
+            
+            if (patternType === "pentatonic_up") {
+                scaleDegrees = [0, 2, 4, 7, 9, 11, 12, 14]; 
+            } else if (patternType === "wave_contour") {
+                scaleDegrees = [0, 2, 4, 2, 4, 7, 5, 4];   
+            } else if (patternType === "triad_skip") {
+                scaleDegrees = [0, 4, 2, 6, 4, 7, 9, 7];   
+            }
+
+            for (let i = 0; i < 8; i++) {
+                const stepTick = startTick + (i * ticksPerBeat / 4);
+                const note = getMidi(currentChordRoot + scaleDegrees[i], 5);
+
+                let targetNote = note; 
+                while (targetNote > 74) targetNote -= 12;
+                while (targetNote < 48) targetNote += 12;
+
+                const velocity = (i % 4 === 0) ? 92 : 78;
+
+                events.push({
+                    tick: stepTick,
+                    type: 'note',
+                    channel: 6, 
+                    note: targetNote,
+                    velocity: velocity + getRandomInt(-3, 3),
+                    duration: (ticksPerBeat / 4) - 10
+                });
+            }
+            
+            events.push({ tick: startTick, type: 'pitch', channel: 6, value: 7800 });
+            events.push({ tick: startTick + (ticksPerBeat / 4), type: 'pitch', channel: 6, value: 8192 });
+            
+            beat += runBeats;
+
+        } else {
+            beat += 1.0; 
+        }
+    }
+    return events;
+}
+
+function generateArpeggio(scaleInfo, chordRoot, baseOctave, bars, startTick, ticksPerBeat, style, swingAmount = 0) {
+    const events = [];
+    
+    const randVal = Math.random();
+    const finalOctave = (randVal < 0.4) ? 3 : (randVal < 0.8) ? 4 : 5;
+
+    const chordNotes = getChordNotes(scaleInfo, chordRoot, finalOctave);
+    
+    const r0 = chordNotes[0], t0 = chordNotes[1], f0 = chordNotes[2];
+    const r1 = r0 + 12, t1 = t0 + 12, f1 = f0 + 12;
+    const r2 = r1 + 12;
+
+    let pattern = [];
+    if (style === "cyber_chase") {
+        pattern = [r0, f0, t1, r1, f1, r2, f1, r1];
+    } else if (style === "space_bounce") {
+        pattern = [r0, r1, t0, t1, f0, f1, t1, r1];
+    } else if (style === "neon_pulse") {
+        pattern = [r0, r0, t0, t0, f0, f0, t0, t0];
+    } else if (style === "retro_sweep") {
+        pattern = [r0, t0, f0, r1, t1, f1, r2, t1];
+    } else if (style === "driving_octaves") {
+        pattern = [r0, r0 + 12, r0, r0 + 12, t0, t0 + 12, f0, f0 + 12];
+    } else {
+        pattern = [r0, t0, f0, r1, t1, r1, f0, t0];
+    }
+
+    const noteDuration = (ticksPerBeat / 4) * 0.85;
+
+    for (let bar = 0; bar < bars; bar++) {
+        const barTick = startTick + (bar * 4 * ticksPerBeat);
+        for (let sixteenth = 0; sixteenth < 16; sixteenth++) {
+            const note = pattern[sixteenth % pattern.length];
+            let tick = barTick + (sixteenth * ticksPerBeat / 4);
+            
+            if (sixteenth % 2 === 1) {
+                tick += (ticksPerBeat / 4) * swingAmount;
+            }
+            
+            const isStrongBeat = (sixteenth % 4 === 0);
+            let velocity = isStrongBeat ? 64 : 48;
+            velocity += getRandomInt(-5, 5);
+
+            events.push({ 
+                tick, 
+                type: 'note', 
+                channel: 3, 
+                note: Math.min(127, Math.max(0, note)), 
+                velocity, 
+                duration: noteDuration 
+            });
+        }
+    }
+    return events;
+}
+
+function generateDynamicMelodicFill(scaleInfo, chordRoot, nextChordRoot, barMelody, startTick, ticksPerBeat) {
+    const events = [];
+    const fillStartTick = startTick + (ticksPerBeat * 3); 
+    
+    const currentChordNotes = getChordNotes(scaleInfo, chordRoot, 5); 
+    const nextChordNotes = getChordNotes(scaleInfo, nextChordRoot, 5); 
+
+    const styles = [
+        "arpeggiated_run", 
+        "syncopated_triad", 
+        "suspension_resolve_clean",
+        "retro_octave_jump",
+        "miami_fifths",
+        "pentatonic_cascade"
+    ];
+    const chosenStyle = getRandomItem(styles);
+
+    if (chosenStyle === "arpeggiated_run") {
+        const notes = [
+            currentChordNotes[0],
+            currentChordNotes[1],
+            currentChordNotes[2],
+            currentChordNotes[0] + 12
+        ];
+        for (let i = 0; i < 4; i++) {
+            events.push({
+                tick: fillStartTick + (i * ticksPerBeat / 4),
+                type: 'note',
+                channel: 5,
+                note: notes[i],
+                velocity: 82,
+                duration: (ticksPerBeat / 4) - 10
+            });
+        }
+    } else if (chosenStyle === "syncopated_triad") {
+        events.push({
+            tick: fillStartTick,
+            type: 'note',
+            channel: 5,
+            note: currentChordNotes[1], 
+            velocity: 84,
+            duration: ticksPerBeat / 2 - 10
+        });
+        events.push({
+            tick: fillStartTick + ticksPerBeat / 2,
+            type: 'note',
+            channel: 5,
+            note: currentChordNotes[2], 
+            velocity: 88,
+            duration: ticksPerBeat / 2 - 10
+        });
+    } else if (chosenStyle === "suspension_resolve_clean") {
+        events.push({
+            tick: fillStartTick,
+            type: 'note',
+            channel: 5,
+            note: currentChordNotes[2], 
+            velocity: 80,
+            duration: ticksPerBeat / 2 - 10
+        });
+        events.push({
+            tick: fillStartTick + ticksPerBeat / 2,
+            type: 'note',
+            channel: 5,
+            note: nextChordNotes[0], 
+            velocity: 88,
+            duration: ticksPerBeat / 2 - 10
+        });
+    } else if (chosenStyle === "retro_octave_jump") {
+        const root = currentChordNotes[0];
+        const octave = root + 12;
+        const pattern = [root, octave, root, octave];
+        
+        for (let i = 0; i < 4; i++) {
+            events.push({
+                tick: fillStartTick + (i * ticksPerBeat / 4),
+                type: 'note',
+                channel: 5,
+                note: pattern[i],
+                velocity: i % 2 === 0 ? 88 : 78,
+                duration: (ticksPerBeat / 4) - 15
+            });
+        }
+    } else if (chosenStyle === "miami_fifths") {
+        const root = currentChordNotes[0];
+        const fifth = currentChordNotes[2];
+        const octave = root + 12;
+        const pattern = [root, fifth, octave, fifth];
+        
+        for (let i = 0; i < 4; i++) {
+            events.push({
+                tick: fillStartTick + (i * ticksPerBeat / 4),
+                type: 'note',
+                channel: 5,
+                note: pattern[i],
+                velocity: 90 - (i * 4), 
+                duration: (ticksPerBeat / 4) - 10
+            });
+        }
+    } else if (chosenStyle === "pentatonic_cascade") {
+        const root = currentChordNotes[0];
+        const pattern = [root + 12, root + 9, root + 7, root + 4]; 
+        
+        for (let i = 0; i < 4; i++) {
+            events.push({
+                tick: fillStartTick + (i * ticksPerBeat / 4),
+                type: 'note',
+                channel: 5,
+                note: pattern[i],
+                velocity: 85,
+                duration: (ticksPerBeat / 4) - 10
+            });
+        }
+    }
+
+    return events;
+}
+
+function addDynamicTomFill(events, startTick, ticksPerBeat, intensity) {
+    const styles = ["simmons_cascade", "snare_build", "syncopated_stutter", "descending_toms"];
+    const chosenStyle = getRandomItem(styles);
+
+    if (chosenStyle === "descending_toms") {
+        events.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 100 * intensity, duration: ticksPerBeat });
+        events.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 50, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat + ticksPerBeat / 2, type: 'note', channel: 9, note: 48, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 2, type: 'note', channel: 9, note: 45, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 2 + ticksPerBeat / 2, type: 'note', channel: 9, note: 43, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 41, velocity: 95 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 3 + ticksPerBeat / 2, type: 'note', channel: 9, note: 38, velocity: 105 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 3 + ticksPerBeat / 2, type: 'note', channel: 9, note: 36, velocity: 110 * intensity, duration: ticksPerBeat / 8 });
+
+    } else if (chosenStyle === "simmons_cascade") {
+        events.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 95 * intensity, duration: ticksPerBeat / 2 });
+        events.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 90 * intensity, duration: ticksPerBeat / 2 });
+        
+        const t3 = startTick + ticksPerBeat * 2;
+        events.push({ tick: t3, type: 'note', channel: 9, note: 50, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t3 + ticksPerBeat / 4, type: 'note', channel: 9, note: 50, velocity: 80 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t3 + ticksPerBeat / 2, type: 'note', channel: 9, note: 48, velocity: 85 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t3 + 3 * ticksPerBeat / 4, type: 'note', channel: 9, note: 48, velocity: 80 * intensity, duration: ticksPerBeat / 4 });
+        
+        const t4 = startTick + ticksPerBeat * 3;
+        events.push({ tick: t4, type: 'note', channel: 9, note: 45, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t4 + ticksPerBeat / 4, type: 'note', channel: 9, note: 43, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t4 + ticksPerBeat / 2, type: 'note', channel: 9, note: 41, velocity: 95 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t4 + 3 * ticksPerBeat / 4, type: 'note', channel: 9, note: 36, velocity: 100 * intensity, duration: ticksPerBeat / 8 });
+
+    } else if (chosenStyle === "snare_build") {
+        events.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 95 * intensity, duration: ticksPerBeat / 2 });
+        events.push({ tick: startTick, type: 'note', channel: 9, note: 38, velocity: 60 * intensity, duration: ticksPerBeat / 2 });
+        
+        events.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 38, velocity: 70 * intensity, duration: ticksPerBeat / 2 });
+        events.push({ tick: startTick + ticksPerBeat + ticksPerBeat / 2, type: 'note', channel: 9, note: 38, velocity: 75 * intensity, duration: ticksPerBeat / 2 });
+        
+        const t3 = startTick + ticksPerBeat * 2;
+        for (let i = 0; i < 4; i++) {
+            events.push({ tick: t3 + i * ticksPerBeat / 4, type: 'note', channel: 9, note: 38, velocity: (80 + i * 5) * intensity, duration: ticksPerBeat / 8 });
+        }
+        
+        const t4 = startTick + ticksPerBeat * 3;
+        events.push({ tick: t4, type: 'note', channel: 9, note: 50, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t4 + ticksPerBeat / 4, type: 'note', channel: 9, note: 48, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t4 + ticksPerBeat / 2, type: 'note', channel: 9, note: 38, velocity: 105 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: t4 + 3 * ticksPerBeat / 4, type: 'note', channel: 9, note: 36, velocity: 110 * intensity, duration: ticksPerBeat / 8 });
+
+    } else if (chosenStyle === "syncopated_stutter") {
+        events.push({ tick: startTick, type: 'note', channel: 9, note: 36, velocity: 100 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat / 2, type: 'note', channel: 9, note: 38, velocity: 95 * intensity, duration: ticksPerBeat / 4 });
+        
+        events.push({ tick: startTick + ticksPerBeat, type: 'note', channel: 9, note: 36, velocity: 100 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 1.5, type: 'note', channel: 9, note: 48, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        
+        events.push({ tick: startTick + ticksPerBeat * 2, type: 'note', channel: 9, note: 45, velocity: 90 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 2.5, type: 'note', channel: 9, note: 41, velocity: 95 * intensity, duration: ticksPerBeat / 4 });
+        
+        events.push({ tick: startTick + ticksPerBeat * 3, type: 'note', channel: 9, note: 38, velocity: 100 * intensity, duration: ticksPerBeat / 4 });
+        events.push({ tick: startTick + ticksPerBeat * 3.5, type: 'note', channel: 9, note: 36, velocity: 110 * intensity, duration: ticksPerBeat / 4 });
+    }
+}
+
