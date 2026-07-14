@@ -85,6 +85,11 @@ const PROGRESSION_TYPES = [
     { template: [0, 5, 0, 0], desc: "i - VI - i - i (Midnight resolution)" },
     { template: [5, 5, 0, 6], desc: "VI - VI - i - VII (Before the sunrise)" },
     { template: [2, 5, 0, 6], desc: "III - VI - i - VII (Soft glow break)" },
+    { template: [0, 0, 5, 6], desc: "i - i - VI - VII (Basic Three Up)" },
+    { template: [0, 0, 6, 5], desc: "i - i - VII - VI (Basic Three Down)" },
+    { template: [0, 6, 5, 5], desc: "i - VII - VI - VI (Basic Three Down Hold)" },
+    { template: [0, 5, 6, 6], desc: "i - VII - VI - VI (Basic Three Down & Up Hold)" },
+    { template: [0, 6, 5, 6], desc: "i - VII - VI - VII (Basic Three Down & Up)" },
     { template: [0, 5, 2, 6, 0, 5, 6, 5], desc: "i - VI - III - VII - i - VI - VII - VI (Extended journey)" }
 ];
 
